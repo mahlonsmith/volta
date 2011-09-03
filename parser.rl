@@ -2,7 +2,26 @@
 
 #include "volta.h"
 
+%%{
+	machine redirector;
+
+	action yay {
+		printf( "YAH\n" );
+	}
+
+	# http://, ftp://, https://, etc
+	proto = alpha{3,5} . '://';
+
+	# http://mahlon:password@example.com or http://mahlon@example.com
+    #       username              optional password
+	creds = ( alnum | [+._\-] )+ . ( ':' . any+ )? . '@';
+
+	main := ' ' @yay;
+}%%
+%% write data;
+
 /* state machine data */
+/*
 %%{
 	machine redirector;
 
@@ -20,6 +39,7 @@
 	main := ( proto . creds ) | proto @yay '\n';
 }%%
 %% write data;
+*/
 
 int
 parse( char *p )
@@ -28,8 +48,8 @@ parse( char *p )
 	short int cs = 0;
 
 	/* the client request object */
-	request c_request;
-	request *cp_request = &c_request;
+	/* request c_request; */
+	/* request *cp_request = &c_request; */
 
 	/*
 	char ip[ INET_ADDRSTRLEN ];

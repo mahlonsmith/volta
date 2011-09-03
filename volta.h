@@ -12,17 +12,26 @@
 #include <stdarg.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <sqlite3.h>
+
 
 /* Maximum length per line from Squid */
 #define LINE_BUFSIZE 2048
 
-/* URL <SP> client_ip "/" fqdn <SP> user <SP> method [<SP> kvpairs]<NL> */
+/* Aid debugging */
+#define LOC __FILE__, __LINE__
+/* Global debug toggle */
+extern unsigned short int debugmode;
+
+/* The parsed attributes from the request line, as given to us by squid.
+ * URL <SP> client_ip "/" fqdn <SP> user <SP> method [<SP> kvpairs]<NL> */
 typedef struct request {
 	char   *url;
 	char   *host;
@@ -36,9 +45,9 @@ typedef struct request {
 /* An "empty" request struct used for re-assignment */
 static const struct request reset_request;
 
-/* Prototypes */
+/* Function prototypes */
 void usage( char *prg );
-void debug( const char *fmt, ... );
+void debug( int level, char *file, int line, const char *fmt, ... );
 int  parse( char *p );
 
 #endif

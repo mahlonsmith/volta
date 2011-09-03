@@ -1,25 +1,41 @@
 
-CFLAGS=-O2 -Wall
-CFLAGS_DEBUG=-Wall -DDEBUG -DPROG='"volta (debugmode)"'
-LIBS=-lsqlite3
+CFLAGS       = -O2
+LIBS         = -lsqlite3
+#OBJS         = $(patsubst %.c,%.o,$(wildcard *.c)) parser.o
+OBJS         =  volta.o parser.o
 
-volta: parser.c volta.c volta.h
-	$(CC) $(CFLAGS) $(LIBS) -o $@ *.c
+########################################################################
+### M A I N
+########################################################################
+
+volta: $(OBJS)
+	$(CC) $(CFLAGS) $(LIBS) -o $@ $(OBJS)
 	strip $@
+
+$(OBJS): volta.h
 
 parser.c: parser.rl
 	ragel -L -C -e -G2 parser.rl -o $@
 
-debug: volta_debug
 
-volta_debug: parser_debug.c volta.h
-	$(CC) $(CFLAGS_DEBUG) $(LIBS) -o volta *.c
+########################################################################
+### D E B U G
+########################################################################
 
-parser_debug.c: parser.c
-	ragel -V parser.rl > parser_state.dot
-	ragel -C -e -G2 -V -x parser.rl -o parser_state.xml
+debug: CFLAGS = -Wall -DDEBUG -DPROG='"volta (debugmode)"'
+debug: volta parser_state.xml parser_state.png parser_state.dot
+
+parser_state.xml parser_state.png parser_state.dot: parser.rl
+	ragel -Vp parser.rl > parser_state.dot
+	ragel -C -e -G2 -x parser.rl -o parser_state.xml
 	dot -Tpng parser_state.dot > parser_state.png
 
+
+########################################################################
+### U T I L
+########################################################################
+
+.PHONY : clean
 clean:
-	@rm -rf volta volta_debug* parser.c parser_state.*
+	-rm -f volta volta_debug* parser.c parser_state.* *.o
 
