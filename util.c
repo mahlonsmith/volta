@@ -37,13 +37,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 void
 usage( char *prg )
 {
-	printf( "%s [-vh] [-d <level>] [-a <init>]\n", prg );
+	printf( "%s [-vh] [-f <filename>] [-d <level>]\n", prg );
 	printf( "    -v Display version\n" );
 	printf( "    -d <level> Show debug information on stderr\n" );
 	printf( "    -h Usage (you're lookin' at it)\n" );
-	printf( "    -a Perform an action, being one of:\n" );
-	printf( "         init: Initialize a new, empty database\n" );
-	printf( "         dump: DUMP IT\n" );
+	printf( "    -f <filename> Specify the database to use (default is 'volta.db' in the cwd.)\n");
 	printf( "\n" );
 	return;
 }
@@ -62,7 +60,7 @@ usage( char *prg )
 void
 debug( int level, char *file, int line, const char *fmt, ... )
 {
-	if ( debugmode < level ) return;
+	if ( v.debugmode < level ) return;
 
 	char timestamp[20];
 	time_t t = time( NULL );
@@ -114,9 +112,48 @@ extend_line( char *line, const char *buf )
 	}
 	else {
 		line = line_realloc;
-		memcpy( line + offset, buf, strlen(buf) );
+		memcpy( line + offset, buf, LINE_BUFSIZE - 1 );
 	}
 
 	return( line );
 }
+
+
+/*
+ * Read an entire file into memory, returning a pointer the contents.
+ * Returns NULL on error.
+ *
+ */
+char *
+slurp_file( char *file )
+{
+	FILE *fh       = NULL;
+	char *contents = NULL;
+	struct stat sb;
+
+	if ( stat( file, &sb ) != 0 ) {
+		debug( 1, LOC, "Unable to stat() file '%s': %s\n",
+				file, strerror(errno) );
+		return( NULL );
+	}
+
+	if ( (contents = malloc( sb.st_size + 1 )) == NULL ) {
+		debug( 1, LOC, "Unable to allocate memory for file '%s': %s\n",
+				file, strerror(errno) );
+		return( NULL );
+	}
+
+	if ( (fh = fopen( file, "r" )) == NULL ) {
+		debug( 1, LOC, "Could not open file for reading '%s': %s\n",
+				file, strerror(errno) );
+		return( NULL );
+	}
+
+	fread( contents, sizeof(char), sb.st_size, fh );
+	fclose( fh );
+
+	return( contents );
+}
+
+
 

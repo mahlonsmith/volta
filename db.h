@@ -28,40 +28,22 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include "volta.h"
+#ifndef _DB_H
+#define _DB_H
 
+#include <sqlite3.h>
+
+extern const unsigned short int DB_VERSION;
 
 /*
- * Parse command line options, perform actions, and enter accept loop.
+ *
+ * Function prototypes
  *
  */
-int
-db_initialize( void )
-{
-	debug( 1, LOC, "init! init! init!\n" );
 
-	struct sqlite3 *db;
-	struct sqlite3_stmt *stmt;
+int db_attach( void );
+int db_upgrade( unsigned short int current_version );
+short int db_version( void );
 
-	if ( sqlite3_open( "testing.db", &db ) != SQLITE_OK ) {
-		debug( 1, LOC, "Error when initializing database: %s\n", sqlite3_errmsg(db) );
-		return( sqlite3_errcode(db) );
-	}
-
-	if ( sqlite3_prepare( db, "create table foo(bar int);", -1, &stmt, NULL ) != SQLITE_OK ) {
-		debug( 1, LOC, "Error preparing statement: %s\n", sqlite3_errmsg(db) );
-		return( sqlite3_errcode(db) );
-	}
-
-	if ( sqlite3_step( stmt ) != SQLITE_DONE ) {
-		debug( 1, LOC, "Error executing statement: %s\n", sqlite3_errmsg(db) );
-		return( sqlite3_errcode(db) );
-	}
-
-	sqlite3_finalize( stmt );
-	sqlite3_close( db );
-
-	debug( 1, LOC, "okay! okay! okay!\n" );
-	return( SQLITE_OK );
-}
+#endif
 

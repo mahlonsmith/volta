@@ -1,0 +1,6 @@
+BEGIN;
+
+DROP TABLE IF EXISTS init;
+CREATE TABLE init ( bar INT );
+
+COMMIT;   

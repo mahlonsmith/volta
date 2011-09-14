@@ -43,13 +43,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
+#include <sys/stat.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-
-#include <sqlite3.h>
 
 #ifdef DEBUG
 #include <google/profiler.h>
@@ -60,8 +59,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /* Aid debugging */
 #define LOC __FILE__, __LINE__
-/* Global debug toggle */
-extern unsigned short int debugmode;
+
+/* a global struct for easy access to common vars */
+struct v_globals {
+	unsigned short int debugmode; /* debug level */
+	char dbname[128];             /* path to database file */
+	struct sqlite3 *db;           /* database handle */
+};
+extern struct v_globals v;        /* defined in main.c */
 
 /* The parsed attributes from the request line, as given to us by squid.
  * URL <SP> client_ip "/" fqdn <SP> user <SP> method [<SP> kvpairs]<NL> */
@@ -75,9 +80,6 @@ typedef struct request {
 	char   *kvpairs;
 } request;
 
-/* FIXME: An "empty" request struct used for re-assignment */
-static const struct request reset_request;
-
 /*
  *
  * Function prototypes
@@ -86,9 +88,8 @@ static const struct request reset_request;
 
 void usage( char *prg );
 void debug( int level, char *file, int line, const char *fmt, ... );
+char *slurp_file( char *file );
 char *extend_line( char *line, const char *buf );
-
-int db_initialize( void );
 
 int accept_loop( void );
 struct request *parse( char *p );

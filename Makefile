@@ -1,10 +1,10 @@
 
 CFLAGS       = -O2
-CFLAGS_DEBUG = -Wall -L /usr/lib -L /opt/local/lib -DDEBUG -DPROG='"volta (debugmode)"'
+CFLAGS_DEBUG = -Wall -L /opt/local/lib -I /opt/local/include -DDEBUG -DPROG='"volta (debugmode)"'
 LIBS         = -lsqlite3
 LIBS_DEBUG   = -lprofiler  # requires proftools
 #OBJS         = $(patsubst %.c,%.o,$(wildcard *.c)) parser.o
-OBJS         = accept_loop.o database.o main.o parser.o util.o
+OBJS         = accept_loop.o db.o main.o parser.o util.o
 
 ########################################################################
 ### P R O D U C T I O N
@@ -52,7 +52,7 @@ profile:
 .PHONY : clean cleanall
 
 cleanall: clean
-	rm -f parser.c
+	rm -f parser.c volta.db
 
 clean:
 	-rm -f volta volta_debug* parser_graph.* *.o *.prof*

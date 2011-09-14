@@ -31,16 +31,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /*
  * TODO
  *
- * empty struct not necessary?
  * inet_pton( AF_INET, *char src, dest )
  * an option to run the DB out of memory?
- * PRAGMA user_version = 1;
  *
  */
 
 #include "volta.h"
-unsigned short int debugmode;
+#include "db.h"
 
+struct v_globals v;
 
 /*
  * Parse command line options, perform actions, and enter accept loop.
@@ -49,41 +48,38 @@ unsigned short int debugmode;
 int
 main( int argc, char *argv[] )
 {
-	/* opt action flags */
-	struct {
-		unsigned char init;
-		unsigned char dump;
-	} actions = {0};
-
 #ifdef DEBUG
 	/* debugmode set at compile time,
 	 * default to display everything */
-	debugmode = 99;
+	v.debugmode = 99;
 #else
-	debugmode = 0;
+	v.debugmode = 0;
 #endif
+
+	/* default database file name */
+	v.db = NULL;
+	strcpy( v.dbname, "volta.db" );
 
 	/* get_opt vars */
 	int opt = 0;
 	opterr  = 0;
 
 	/* parse options */
-	while ( (opt = getopt( argc, argv, "a:d:hv" )) != -1 ) {
+	while ( (opt = getopt( argc, argv, "d:f:hv" )) != -1 ) {
 		switch ( opt ) {
 
-			/* action */
-			case 'a':
-				if ( strcmp( optarg, "init" ) == 0 ) actions.init++;
-				if ( strcmp( optarg, "dump" ) == 0 ) actions.dump++;
+			/* database filename */
+			case 'f':
+				strncpy( v.dbname, optarg, sizeof(v.dbname) );
 				break;
 
 			/* debug */
 			case 'd':
 				if ( optarg[2] == '-' ) {
 					argc++; argv -= 1;
-					debugmode = 1;
+					v.debugmode = 1;
 				}
-				sscanf( optarg, "%hu", &debugmode );
+				sscanf( optarg, "%hu", &v.debugmode );
 				break;
 
 			/* help */
@@ -100,7 +96,7 @@ main( int argc, char *argv[] )
 			case '?':
 				switch( optopt ) {
 					case 'd': /* no debug argument, default to level 1 */
-						debugmode = 1;
+						v.debugmode = 1;
 						break;
 					default:
 						usage( argv[0] );
@@ -114,15 +110,8 @@ main( int argc, char *argv[] )
 	argc -= optind;
 	argv += optind;
 
-	/* perform any requested actions */
-	if ( actions.init ) {
-		db_initialize();
-		return( 0 );
-	}
-	if ( actions.dump ) {
-		debug( 1, LOC, "dump.\n" );
-		return( 0 );
-	}
+	/* get the initial database handle or bomb immediately. */
+	if ( db_attach() != SQLITE_OK ) exit( 1 );
 
 	/* enter stdin parsing loop */
 	return accept_loop();
