@@ -1,11 +1,13 @@
 
 CFLAGS       = -O2
+CFLAGS_DEBUG = -Wall -L /usr/lib -L /opt/local/lib -DDEBUG -DPROG='"volta (debugmode)"'
 LIBS         = -lsqlite3
+LIBS_DEBUG   = -lprofiler  # requires proftools
 #OBJS         = $(patsubst %.c,%.o,$(wildcard *.c)) parser.o
-OBJS         =  volta.o parser.o
+OBJS         = accept_loop.o database.o main.o parser.o util.o
 
 ########################################################################
-### M A I N
+### P R O D U C T I O N
 ########################################################################
 
 volta: $(OBJS)
@@ -14,7 +16,9 @@ volta: $(OBJS)
 
 $(OBJS): volta.h
 
-parser.c: parser.rl
+# don't actually depend on parser.rl, so distributions don't require ragel
+# ragel -C -T0 parser.rl -o $@
+parser.c:
 	ragel -L -C -e -G2 parser.rl -o $@
 
 
@@ -22,20 +26,34 @@ parser.c: parser.rl
 ### D E B U G
 ########################################################################
 
-debug: CFLAGS = -Wall -DDEBUG -DPROG='"volta (debugmode)"'
-debug: volta parser_state.xml parser_state.png parser_state.dot
+debug: CFLAGS += $(CFLAGS_DEBUG)
+debug: LIBS   += $(LIBS_DEBUG)
+debug: volta-debug parser_graph.xml parser_graph.png parser_graph.dot
 
-parser_state.xml parser_state.png parser_state.dot: parser.rl
-	ragel -Vp parser.rl > parser_state.dot
-	ragel -C -e -G2 -x parser.rl -o parser_state.xml
-	dot -Tpng parser_state.dot > parser_state.png
+volta-debug: $(OBJS)
+	$(CC) $(CFLAGS) $(LIBS) -o volta $(OBJS)
+
+parser_graph.xml parser_graph.png parser_graph.dot: parser.rl
+	ragel -Vp parser.rl > parser_graph.dot
+	ragel -C -e -G2 -x parser.rl -o parser_graph.xml
+	dot -Tpng parser_graph.dot > parser_graph.png
+
+# export CPUPROFILE="cpu.prof" before running volta for cpu profiling
+# export CPUPROFILE_FREQUENCY=100 (default)
+profile:
+	pprof --dot ./volta $(CPUPROFILE) | dot -Tpng > $(CPUPROFILE).png
+	pprof --text ./volta $(CPUPROFILE)
 
 
 ########################################################################
 ### U T I L
 ########################################################################
 
-.PHONY : clean
+.PHONY : clean cleanall
+
+cleanall: clean
+	rm -f parser.c
+
 clean:
-	-rm -f volta volta_debug* parser.c parser_state.* *.o
+	-rm -f volta volta_debug* parser_graph.* *.o *.prof*
 

@@ -28,70 +28,40 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef _VOLTA_H
-#define _VOLTA_H
+#include "volta.h"
 
-#ifndef PROG
-#define PROG    "volta"
-#endif
-#define VERSION "$Version$" /* expanded by mercurial */
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdarg.h>
-#include <errno.h>
-#include <string.h>
-#include <unistd.h>
-#include <time.h>
-
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-
-#include <sqlite3.h>
-
-#ifdef DEBUG
-#include <google/profiler.h>
-#endif
-
-/* Default line size we accept from squid, longer lines (huge URLs?) malloc. */
-#define LINE_BUFSIZE 2048
-
-/* Aid debugging */
-#define LOC __FILE__, __LINE__
-/* Global debug toggle */
-extern unsigned short int debugmode;
-
-/* The parsed attributes from the request line, as given to us by squid.
- * URL <SP> client_ip "/" fqdn <SP> user <SP> method [<SP> kvpairs]<NL> */
-typedef struct request {
-	char   *url;
-	char   *host;
-	struct sockaddr_in ip;
-	char   *ip_fqdn;
-	char   *user;
-	char   *method;
-	char   *kvpairs;
-} request;
-
-/* FIXME: An "empty" request struct used for re-assignment */
-static const struct request reset_request;
 
 /*
- *
- * Function prototypes
+ * Parse command line options, perform actions, and enter accept loop.
  *
  */
+int
+db_initialize( void )
+{
+	debug( 1, LOC, "init! init! init!\n" );
 
-void usage( char *prg );
-void debug( int level, char *file, int line, const char *fmt, ... );
-char *extend_line( char *line, const char *buf );
+	struct sqlite3 *db;
+	struct sqlite3_stmt *stmt;
 
-int db_initialize( void );
+	if ( sqlite3_open( "testing.db", &db ) != SQLITE_OK ) {
+		debug( 1, LOC, "Error when initializing database: %s\n", sqlite3_errmsg(db) );
+		return( sqlite3_errcode(db) );
+	}
 
-int accept_loop( void );
-struct request *parse( char *p );
+	if ( sqlite3_prepare( db, "create table foo(bar int);", -1, &stmt, NULL ) != SQLITE_OK ) {
+		debug( 1, LOC, "Error preparing statement: %s\n", sqlite3_errmsg(db) );
+		return( sqlite3_errcode(db) );
+	}
 
-#endif
+	if ( sqlite3_step( stmt ) != SQLITE_DONE ) {
+		debug( 1, LOC, "Error executing statement: %s\n", sqlite3_errmsg(db) );
+		return( sqlite3_errcode(db) );
+	}
+
+	sqlite3_finalize( stmt );
+	sqlite3_close( db );
+
+	debug( 1, LOC, "okay! okay! okay!\n" );
+	return( SQLITE_OK );
+}
 

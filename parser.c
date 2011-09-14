@@ -1,3 +1,5 @@
+
+/* #line 1 "parser.rl" */
 /* vim: set noet nosta sw=4 ts=4 ft=ragel : */
 /*
 Copyright (c) 2011, Mahlon E. Smith <mahlon@martini.nu>
@@ -57,28 +59,19 @@ By default, a URL rewriter is not used.
 
 #include "volta.h"
 
-%%{
-	machine redirector;
 
-	action parse_error {
-		debug( 2, LOC, "parse error\n" );
-		return( NULL );
-	}
+/* #line 80 "parser.rl" */
 
-	action yay {
-		printf( "I saw: %s", p+1 );
-	}
 
-	# http://, ftp://, https://, etc
-	proto = alpha{3,5} . '://';
+/* #line 67 "parser.c" */
+static const int redirector_start = 1;
+static const int redirector_first_final = 13;
+static const int redirector_error = 0;
 
-	# http://mahlon:password@example.com or http://mahlon@example.com
-    #       username              optional password
-	creds = ( alnum | [+._\-] )+ . ( ':' . any+ )? . '@';
+static const int redirector_en_main = 1;
 
-	main  := ( proto . creds ) | proto @yay '\n';
-}%%
-%% write data;
+
+/* #line 82 "parser.rl" */
 
 /*
 %%{
@@ -139,8 +132,189 @@ parse( char *p )
 	char *pe = p + strlen(p) + 1;
 
 	/* enter state machine */
-	%% write init;
-	%% write exec;
+	
+/* #line 137 "parser.c" */
+	{
+	cs = redirector_start;
+	}
+
+/* #line 143 "parser.rl" */
+	
+/* #line 144 "parser.c" */
+	{
+	if ( p == pe )
+		goto _test_eof;
+	switch ( cs )
+	{
+case 1:
+	if ( (*p) > 90 ) {
+		if ( 97 <= (*p) && (*p) <= 122 )
+			goto st2;
+	} else if ( (*p) >= 65 )
+		goto st2;
+	goto st0;
+st0:
+cs = 0;
+	goto _out;
+st2:
+	if ( ++p == pe )
+		goto _test_eof2;
+case 2:
+	if ( (*p) > 90 ) {
+		if ( 97 <= (*p) && (*p) <= 122 )
+			goto st3;
+	} else if ( (*p) >= 65 )
+		goto st3;
+	goto st0;
+st3:
+	if ( ++p == pe )
+		goto _test_eof3;
+case 3:
+	if ( (*p) > 90 ) {
+		if ( 97 <= (*p) && (*p) <= 122 )
+			goto st4;
+	} else if ( (*p) >= 65 )
+		goto st4;
+	goto st0;
+st4:
+	if ( ++p == pe )
+		goto _test_eof4;
+case 4:
+	if ( (*p) == 58 )
+		goto st5;
+	if ( (*p) > 90 ) {
+		if ( 97 <= (*p) && (*p) <= 122 )
+			goto st11;
+	} else if ( (*p) >= 65 )
+		goto st11;
+	goto st0;
+st5:
+	if ( ++p == pe )
+		goto _test_eof5;
+case 5:
+	if ( (*p) == 47 )
+		goto st6;
+	goto st0;
+st6:
+	if ( ++p == pe )
+		goto _test_eof6;
+case 6:
+	if ( (*p) == 47 )
+		goto tr7;
+	goto st0;
+tr7:
+/* #line 68 "parser.rl" */
+	{
+		printf( "I saw: %s", p+1 );
+	}
+	goto st7;
+st7:
+	if ( ++p == pe )
+		goto _test_eof7;
+case 7:
+/* #line 216 "parser.c" */
+	switch( (*p) ) {
+		case 10: goto st13;
+		case 43: goto st8;
+		case 95: goto st8;
+	}
+	if ( (*p) < 48 ) {
+		if ( 45 <= (*p) && (*p) <= 46 )
+			goto st8;
+	} else if ( (*p) > 57 ) {
+		if ( (*p) > 90 ) {
+			if ( 97 <= (*p) && (*p) <= 122 )
+				goto st8;
+		} else if ( (*p) >= 65 )
+			goto st8;
+	} else
+		goto st8;
+	goto st0;
+st13:
+	if ( ++p == pe )
+		goto _test_eof13;
+case 13:
+	goto st0;
+st8:
+	if ( ++p == pe )
+		goto _test_eof8;
+case 8:
+	switch( (*p) ) {
+		case 43: goto st8;
+		case 58: goto st9;
+		case 64: goto st13;
+		case 95: goto st8;
+	}
+	if ( (*p) < 48 ) {
+		if ( 45 <= (*p) && (*p) <= 46 )
+			goto st8;
+	} else if ( (*p) > 57 ) {
+		if ( (*p) > 90 ) {
+			if ( 97 <= (*p) && (*p) <= 122 )
+				goto st8;
+		} else if ( (*p) >= 65 )
+			goto st8;
+	} else
+		goto st8;
+	goto st0;
+st9:
+	if ( ++p == pe )
+		goto _test_eof9;
+case 9:
+	goto st10;
+st10:
+	if ( ++p == pe )
+		goto _test_eof10;
+case 10:
+	if ( (*p) == 64 )
+		goto st14;
+	goto st10;
+st14:
+	if ( ++p == pe )
+		goto _test_eof14;
+case 14:
+	if ( (*p) == 64 )
+		goto st14;
+	goto st10;
+st11:
+	if ( ++p == pe )
+		goto _test_eof11;
+case 11:
+	if ( (*p) == 58 )
+		goto st5;
+	if ( (*p) > 90 ) {
+		if ( 97 <= (*p) && (*p) <= 122 )
+			goto st12;
+	} else if ( (*p) >= 65 )
+		goto st12;
+	goto st0;
+st12:
+	if ( ++p == pe )
+		goto _test_eof12;
+case 12:
+	if ( (*p) == 58 )
+		goto st5;
+	goto st0;
+	}
+	_test_eof2: cs = 2; goto _test_eof; 
+	_test_eof3: cs = 3; goto _test_eof; 
+	_test_eof4: cs = 4; goto _test_eof; 
+	_test_eof5: cs = 5; goto _test_eof; 
+	_test_eof6: cs = 6; goto _test_eof; 
+	_test_eof7: cs = 7; goto _test_eof; 
+	_test_eof13: cs = 13; goto _test_eof; 
+	_test_eof8: cs = 8; goto _test_eof; 
+	_test_eof9: cs = 9; goto _test_eof; 
+	_test_eof10: cs = 10; goto _test_eof; 
+	_test_eof14: cs = 14; goto _test_eof; 
+	_test_eof11: cs = 11; goto _test_eof; 
+	_test_eof12: cs = 12; goto _test_eof; 
+
+	_test_eof: {}
+	_out: {}
+	}
+
+/* #line 144 "parser.rl" */
 
 	/* reset the request */
 	/* c_request = reset_request; */
