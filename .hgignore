@@ -1,4 +1,5 @@
 ^volta$
-^parser.c$
-^parser_state.*
+^parser_graph.*
 .*debug
+.*.o
+
