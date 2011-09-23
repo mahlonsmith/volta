@@ -149,9 +149,13 @@ slurp_file( char *file )
 		return( NULL );
 	}
 
-	fread( contents, sizeof(char), sb.st_size, fh );
-	fclose( fh );
+	if ( fread( contents, sizeof(char), sb.st_size, fh ) != sb.st_size ) {
+		debug( 1, LOC, "Short read for file '%s'?: %s\n", file );
+		fclose( fh );
+		return( NULL );
+	}
 
+	fclose( fh );
 	return( contents );
 }
 
