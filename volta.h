@@ -85,6 +85,7 @@ typedef struct request {
  * Function prototypes
  *
  */
+int getopt( int, char * const [], const char *);
 
 void usage( char *prg );
 void debug( int level, char *file, int line, const char *fmt, ... );

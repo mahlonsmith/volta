@@ -54,9 +54,11 @@ main( int argc, char *argv[] )
 
 	/* get_opt vars */
 	int opt = 0;
-	opterr  = 0;
+	extern char *optarg;
+	extern int opterr, optind, optopt;
 
 	/* parse options */
+	opterr = 0;
 	while ( (opt = getopt( argc, argv, "d:f:hv" )) != -1 ) {
 		switch ( opt ) {
 

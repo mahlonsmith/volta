@@ -1,5 +1,5 @@
 
-/* #line 1 "parser.rl" */
+#line 1 "parser.rl"
 /* vim: set noet nosta sw=4 ts=4 ft=ragel : */
 /*
 Copyright (c) 2011, Mahlon E. Smith <mahlon@martini.nu>
@@ -60,10 +60,10 @@ By default, a URL rewriter is not used.
 #include "volta.h"
 
 
-/* #line 80 "parser.rl" */
+#line 80 "parser.rl"
 
 
-/* #line 67 "parser.c" */
+#line 67 "parser.c"
 static const int redirector_start = 1;
 static const int redirector_first_final = 13;
 static const int redirector_error = 0;
@@ -71,7 +71,7 @@ static const int redirector_error = 0;
 static const int redirector_en_main = 1;
 
 
-/* #line 82 "parser.rl" */
+#line 82 "parser.rl"
 
 /*
 %%{
@@ -133,14 +133,14 @@ parse( char *p )
 
 	/* enter state machine */
 	
-/* #line 137 "parser.c" */
+#line 137 "parser.c"
 	{
 	cs = redirector_start;
 	}
 
-/* #line 143 "parser.rl" */
+#line 143 "parser.rl"
 	
-/* #line 144 "parser.c" */
+#line 144 "parser.c"
 	{
 	if ( p == pe )
 		goto _test_eof;
@@ -203,7 +203,7 @@ case 6:
 		goto tr7;
 	goto st0;
 tr7:
-/* #line 68 "parser.rl" */
+#line 68 "parser.rl"
 	{
 		printf( "I saw: %s", p+1 );
 	}
@@ -212,7 +212,7 @@ st7:
 	if ( ++p == pe )
 		goto _test_eof7;
 case 7:
-/* #line 216 "parser.c" */
+#line 216 "parser.c"
 	switch( (*p) ) {
 		case 10: goto st13;
 		case 43: goto st8;
@@ -314,7 +314,7 @@ case 12:
 	_out: {}
 	}
 
-/* #line 144 "parser.rl" */
+#line 144 "parser.rl"
 
 	/* reset the request */
 	/* c_request = reset_request; */
