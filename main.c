@@ -28,14 +28,6 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-/*
- * TODO
- *
- * inet_pton( AF_INET, *char src, dest )
- * an option to run the DB out of memory?
- *
- */
-
 #include "volta.h"
 #include "db.h"
 

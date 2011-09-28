@@ -1,6 +1,8 @@
 BEGIN;
 
-DROP TABLE IF EXISTS init;
-CREATE TABLE init ( bar INT );
+DROP TABLE IF EXISTS rules;
+CREATE TABLE rules (
+	redir TINYINT NOT NULL DEFAULT 0 CHECK( redir IN (0,1,2) )
+);
 
-COMMIT;   
+COMMIT;

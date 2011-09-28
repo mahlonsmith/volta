@@ -45,7 +45,7 @@ int
 db_attach( void )
 {
 	if ( v.db != NULL )          return( SQLITE_OK );    /* already attached */
-	if ( strlen(v.dbname) == 0 ) return( SQLITE_ERROR ); /* name not set */
+	if ( strlen(v.dbname) == 0 ) return( SQLITE_ERROR ); /* db filename not set? */
 
 	debug( 2, LOC, "Attaching to database '%s'\n", v.dbname );
 	if ( sqlite3_open( v.dbname, &v.db ) != SQLITE_OK ) {
@@ -55,9 +55,9 @@ db_attach( void )
 
 	/* check DB version */
 	unsigned short int version = db_version();
+	debug( 2, LOC, "Database version: %d\n", version );
 	if ( version != DB_VERSION ) {
-		debug( 1, LOC, "Database version mismatch: expected %hu, got %d.\n",
-				DB_VERSION, version );
+		debug( 2, LOC, "Database version mismatch: expected %hu\n", DB_VERSION );
 
 		/* We're in need of a DB initialization, or just behind.
 		 * Attempt to "stair step" upgrade to the current version. */
@@ -90,10 +90,10 @@ db_upgrade( unsigned short int current_version )
 
 	for ( i = current_version + 1; i <= DB_VERSION; i++ ) {
 		if ( i == 1 ) {
-			debug( 1, LOC, "Initializing new database.\n" );
+			debug( 2, LOC, "Initializing new database.\n" );
 		}
 		else {
-			debug( 1, LOC, "Upgrading database version from %hu to %hu\n", current_version, i );
+			debug( 2, LOC, "Upgrading database version from %hu to %hu\n", current_version, i );
 		}
 
 		sprintf( sql_file, "sql/%d.sql", i );
@@ -102,7 +102,8 @@ db_upgrade( unsigned short int current_version )
 
 		/* If there is SQL to execute, do so and then reset for more */
 		if ( sqlite3_exec( v.db, upgrade_sql, NULL, NULL, NULL ) != SQLITE_OK ) {
-			debug( 1, LOC, "Error upgrading database: %s\n", sqlite3_errmsg(v.db) );
+			debug( 2, LOC, "Error %s database: %s\n",
+					(i == 1 ? "initalizing" : "upgrading"), sqlite3_errmsg(v.db) );
 			return( sqlite3_errcode(v.db) );
 		}
 		free( upgrade_sql );
@@ -112,7 +113,7 @@ db_upgrade( unsigned short int current_version )
 		current_version = i;
 		sprintf( user_pragma, "PRAGMA user_version = %hu;", current_version );
 		if ( sqlite3_exec( v.db, user_pragma, NULL, NULL, NULL ) != SQLITE_OK ) {
-			debug( 1, LOC, "Error upgrading database: %s\n", sqlite3_errmsg(v.db) );
+			debug( 2, LOC, "Error setting version: %s\n", sqlite3_errmsg(v.db) );
 			return( sqlite3_errcode(v.db) );
 		}
 	}
@@ -133,7 +134,7 @@ db_version( void )
 	int version = -1;
 
 	if ( sqlite3_prepare_v2( v.db, "PRAGMA user_version", -1, &stmt, NULL ) != SQLITE_OK ) {
-		debug( 1, LOC, "Error finding DB version: %s\n", sqlite3_errmsg(v.db) );
+		debug( 2, LOC, "Error finding DB version: %s\n", sqlite3_errmsg(v.db) );
 		return( -1 );
 	}
 
@@ -141,6 +142,6 @@ db_version( void )
 		version = sqlite3_column_int( stmt, 0 );
 
 	sqlite3_finalize( stmt );
-	return version;
+	return( version );
 }
 

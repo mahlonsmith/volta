@@ -36,11 +36,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 extern const unsigned short int DB_VERSION;
 
 /*
- *
  * Function prototypes
  *
  */
-
 int db_attach( void );
 int db_upgrade( unsigned short int current_version );
 short int db_version( void );
