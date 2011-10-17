@@ -106,8 +106,7 @@ db_upgrade( unsigned short int current_version )
 					(i == 1 ? "initalizing" : "upgrading"), sqlite3_errmsg(v.db) );
 			return( sqlite3_errcode(v.db) );
 		}
-		free( upgrade_sql );
-		upgrade_sql = NULL;
+		free( upgrade_sql ), upgrade_sql = NULL;
 
 		/* update version metadata in DB if update was successful */
 		current_version = i;

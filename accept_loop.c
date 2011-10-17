@@ -31,7 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "volta.h"
 
 /*
- * Accept lines from squid and pass to the parser.
+ * Accept and process lines from squid.
  */
 int
 accept_loop( void )
@@ -47,7 +47,6 @@ accept_loop( void )
 
 	debug( 1, LOC, "Waiting for input...\n" );
 	while ( fgets( buf, LINE_BUFSIZE, stdin ) != NULL ) {
-
 		bufsize = strlen( buf );
 
 		/* Common case, or last iteration of loop:
@@ -55,18 +54,17 @@ accept_loop( void )
 		 */
 		if ( bufsize + 1 < LINE_BUFSIZE ) {
 			/* line wasn't concatenated onto in previous loops,
-			 * just pass it directly to parse() */
+			 * just pass it directly to process() */
 			if ( line == NULL ) {
-				parse( buf );
+				process( buf );
 			}
 
 			/* memory was previously allocated to contain the line, 
-			 * append the final chunk, pass to parse(), and cleanup. */
+			 * append the final chunk, pass to process(), and cleanup. */
 			else {
 				if ( (line = extend_line( line, buf )) == NULL ) continue;
-				parse( line );
-				free( line );
-				line = NULL;
+				process( line );
+				free( line ), line = NULL;
 			}
 		}
 
@@ -87,15 +85,15 @@ accept_loop( void )
 			 * (within the current line) that still need to be appended.
 			 */
 			if ( buf[ bufsize - 1 ] == '\n' ) {
-				parse( line );
-				free( line );
-				line = NULL;
+				process( line );
+				free( line ), line = NULL;
 			}
 		}
 	}
 
 	/* stdin closed */
 	debug( 1, LOC, "End of stream\n" );
+	report_speed();
 	return( 0 );
 }
 

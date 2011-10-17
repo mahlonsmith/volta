@@ -31,89 +31,26 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "volta.h"
 #include "db.h"
 
-struct v_globals v;
-
-/*
- * Parse command line options, perform actions, and enter accept loop.
- *
- */
-int
-main( int argc, char *argv[] )
+void
+process( char *line )
 {
-#ifdef DEBUG
-	/* debugmode set at compile time,
-	 * default to display everything */
-	v.debugmode = 99;
-#else
-	v.debugmode = 0;
-#endif
+	request *p_request = parse( line );
 
-	/* default database file name */
-	v.db = NULL;
-	strcpy( v.dbname, "volta.db" );
+	/* count lines in debugmode */
+	if ( v.debugmode > 2 ) v.timer.lines++;
 
-	/* get_opt vars */
-	int opt = 0;
-	extern char *optarg;
-	extern int opterr, optind, optopt;
-
-	/* parse options */
-	opterr = 0;
-	while ( (opt = getopt( argc, argv, "d:f:hv" )) != -1 ) {
-		switch ( opt ) {
-
-			/* database filename */
-			case 'f':
-				strncpy( v.dbname, optarg, sizeof(v.dbname) );
-				break;
-
-			/* debug */
-			case 'd':
-				if ( optarg[2] == '-' ) {
-					argc++; argv -= 1;
-					v.debugmode = 1;
-				}
-				sscanf( optarg, "%hu", &v.debugmode );
-				break;
-
-			/* help */
-			case 'h':
-				usage( argv[0] );
-				return( 0 );
-
-			/* version */
-			case 'v':
-				printf( "%s %s\n", PROG, VERSION );
-				return( 0 );
-
-			/* unknown option or option argument missing */
-			case '?':
-				switch( optopt ) {
-					case 'd': /* no debug argument, default to level 1 */
-						v.debugmode = 1;
-						break;
-					default:
-						usage( argv[0] );
-						return( 1 );
-				}
-
-			default:
-				break;
-		}
-	}
-	argc -= optind;
-	argv += optind;
-
-	/* set timer vars for lines/sec counter */
-	if ( v.debugmode > 2 ) {
-		v.timer.start = time( NULL );
-		v.timer.lines = 0;
+	/* If parsing failed for some reason, return a blank line to squid. */
+	if ( p_request == NULL ) {
+		printf( "\n" );
+		return;
 	}
 
-	/* get the initial database handle or bomb immediately. */
-	if ( db_attach() != SQLITE_OK ) exit( 1 );
+	printf( "* %s", line );
+	printf( "%s%s%s%s\n\n", p_request->scheme, p_request->host, p_request->port, p_request->path );
 
-	/* enter stdin parsing loop */
-	return( accept_loop() );
+	/* TODO: everything */
+
+	cleanup_request( p_request );
+	return;
 }
 

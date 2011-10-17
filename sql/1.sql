@@ -1,3 +1,5 @@
+--- vim: set noet nosta sw=4 ts=4 ft=sql:
+
 BEGIN;
 
 DROP TABLE IF EXISTS rules;

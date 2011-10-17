@@ -44,6 +44,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <unistd.h>
 #include <time.h>
 #include <sys/stat.h>
+#include <signal.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -56,28 +57,60 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /* Default line size we accept from squid, longer lines (huge URLs?) malloc. */
 #define LINE_BUFSIZE 2048
+/* Ceiling for how many bytes can be allocated at one for a single line. */
+#define LINE_MAX 256000 /* 250k */
+
+/* Redirect types */
+#define REDIR_TEMPORARY   0
+#define REDIR_PERMANENT   1
+#define REDIR_TRANSPARENT 2
 
 /* Aid debugging */
 #define LOC __FILE__, __LINE__
 
-/* a global struct for easy access to common vars */
+/*
+ * a global struct for easy access to common vars 
+ *
+ */
 struct v_globals {
 	unsigned short int debugmode; /* debug level */
 	char dbname[128];             /* path to database file */
 	struct sqlite3 *db;           /* database handle */
+
+	struct {
+		time_t start;            /* start time */
+		unsigned long int lines; /* line count for determining speed */
+	} timer;
 };
 extern struct v_globals v;        /* defined in main.c */
 
-/* The parsed attributes from the request line, as given to us by squid.
- * URL <SP> client_ip "/" fqdn <SP> user <SP> method [<SP> kvpairs]<NL> */
+/*
+ * The parsed attributes from the request line, as given to us by squid.
+ *
+ */
 typedef struct request {
-	char   *url;
+	char   *scheme;
 	char   *host;
-	struct sockaddr_in ip;
-	char   *ip_fqdn;
+	char   *path;
+	char   *port;
+	struct in_addr *client_ip;
 	char   *user;
 	char   *method;
-	char   *kvpairs;
+
+	struct {
+		char *scheme_start;
+		char *host_start;
+		char *port_start;
+		char *path_start;
+		char *meth_start;
+		char *c_ip_start;
+		unsigned short int scheme_length;
+		unsigned short int host_length;
+		unsigned short int port_length;
+		unsigned short int path_length;
+		unsigned short int meth_length;
+		unsigned short int c_ip_length;
+	} tokens;
 } request;
 
 /*
@@ -87,13 +120,20 @@ typedef struct request {
  */
 int getopt( int, char * const [], const char *);
 
-void usage( char *prg );
-void debug( int level, char *file, int line, const char *fmt, ... );
-char *slurp_file( char *file );
-char *extend_line( char *line, const char *buf );
+void usage( char * );
+void debug( int, char *, int, const char *, ... );
+void report_speed( void );
+char *slurp_file( char * );
+char *extend_line( char *, const char * );
+char *copy_string_token( char *, unsigned short int );
+struct in_addr *copy_ipv4_token( char *, unsigned short int );
 
 int accept_loop( void );
 struct request *parse( char *p );
+void process( char * );
+struct request *parse( char * );
+void populate_request( struct request * );
+void cleanup_request( struct request * );
 
 #endif
 

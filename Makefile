@@ -1,7 +1,7 @@
 UNAME       := $(shell uname)
 DEPS         = sqlite3
 DEPS_DEBUG   = sqlite3 libprofiler
-CFLAGS       = $(shell pkg-config --cflags-only-I --libs-only-L $(DEPS)) -O2
+CFLAGS       = -O2 -ansi $(shell pkg-config --cflags-only-I --libs-only-L $(DEPS))
 LIBS         = $(shell pkg-config --libs-only-l $(DEPS))
 #OBJS         = $(patsubst %.c,%.o,$(wildcard *.c)) parser.o
 OBJS         = accept_loop.o db.o main.o parser.o process.o util.o
@@ -31,10 +31,10 @@ parser.c:
 # proftools doesn't currently register a .pc file on Ubuntu, hence these
 # Makefile gymnastics
 ifeq ($(UNAME), Linux)
-debug: CFLAGS = -ggdb -Wall -DDEBUG -DPROG='"volta (debugmode)"'
+debug: CFLAGS = -ggdb -ansi -Wall -DDEBUG -DPROG='"volta (debugmode)"'
 debug: LIBS = -lsqlite3 -lprofiler
 else
-debug: CFLAGS = -ggdb -Wall -DDEBUG -DPROG='"volta (debugmode)"'\
+debug: CFLAGS = -ggdb -ansi -Wall -DDEBUG -DPROG='"volta (debugmode)"'\
 	$(shell pkg-config --cflags-only-I --libs-only-L $(DEPS_DEBUG))
 debug: LIBS = $(shell pkg-config --libs-only-l $(DEPS_DEBUG))
 endif
