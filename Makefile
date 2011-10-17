@@ -1,20 +1,54 @@
-UNAME       := $(shell uname)
-DEPS         = sqlite3
-DEPS_DEBUG   = sqlite3 libprofiler
-CFLAGS       = -O2 -ansi $(shell pkg-config --cflags-only-I --libs-only-L $(DEPS))
-LIBS         = $(shell pkg-config --libs-only-l $(DEPS))
-#OBJS         = $(patsubst %.c,%.o,$(wildcard *.c)) parser.o
-OBJS         = accept_loop.o db.o main.o parser.o process.o util.o
-RAGEL_FLAGS  = -LCe -G2
-
-.PHONY : parsegraph profile clean cleanall release
 
 ########################################################################
-### P R O D U C T I O N
+### S E T U P
+########################################################################
+
+UNAME       := $(shell uname)
+DEPS_DEBUG   = libprofiler
+CFLAGS       = -O2 -DSQLITE_THREADSAFE=0 -DSQLITE_TEMP_STORE=2
+CFLAGS_DEBUG = -DSQLITE_DEBUG -DDEBUG -DPROG='"volta (debugmode)"' -ggdb -ansi -Wall
+LIBS         = 
+OBJS         = $(patsubst %.c,%.o,$(wildcard *.c))
+
+# not using pkg-config for sqlite3 anymore
+#DEPS        = sqlite3
+#CFLAGS      = -O2 -ansi $(shell pkg-config --cflags-only-I --libs-only-L $(DEPS))
+#LIBS        = $(shell pkg-config --libs-only-l $(DEPS))
+
+.PHONY : parsegraph profile clean clobber release
+
+# Ubuntu: perftools doesn't currently register a .pc file, and
+# sqlite amalgamated requires -ldl
+ifeq ($(UNAME), Linux)
+volta: LIBS += -ldl
+debug: CFLAGS += $(CFLAGS_DEBUG)
+debug: LIBS = -lprofiler -ldl
+else
+debug: CFLAGS += $(CFLAGS_DEBUG)\
+	$(shell pkg-config --cflags-only-I --libs-only-L $(DEPS_DEBUG))
+debug: LIBS = $(shell pkg-config --libs-only-l $(DEPS_DEBUG))
+endif
+
+# Fix parser line number display in debug mode
+ifeq (,$(findstring debug,$(MAKECMDGOALS)))
+	RAGEL_FLAGS = -LCe -G2
+else
+	RAGEL_FLAGS = -Ce -G2
+endif
+
+# Ensure the parser is included in the objs list
+# (patsubst wouldn't have found it if parser.c wasn't pre-generated.)
+ifneq (parser.o,$(findstring parser.o,$(OBJS)))
+	OBJS += parser.o
+endif
+
+
+########################################################################
+### B U I L D
 ########################################################################
 
 volta: $(OBJS)
-	$(CC) $(CFLAGS) $(LIBS) -o $@ $(OBJS)
+	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LIBS)
 	strip $@
 
 $(OBJS): volta.h
@@ -23,26 +57,13 @@ $(OBJS): volta.h
 parser.c:
 	ragel $(RAGEL_FLAGS) -s parser.rl -o $@
 
-
-########################################################################
-### D E B U G
-########################################################################
-
-# proftools doesn't currently register a .pc file on Ubuntu, hence these
-# Makefile gymnastics
-ifeq ($(UNAME), Linux)
-debug: CFLAGS = -ggdb -ansi -Wall -DDEBUG -DPROG='"volta (debugmode)"'
-debug: LIBS = -lsqlite3 -lprofiler
-else
-debug: CFLAGS = -ggdb -ansi -Wall -DDEBUG -DPROG='"volta (debugmode)"'\
-	$(shell pkg-config --cflags-only-I --libs-only-L $(DEPS_DEBUG))
-debug: LIBS = $(shell pkg-config --libs-only-l $(DEPS_DEBUG))
-endif
-
-debug: RAGEL_FLAGS = -Ce -G2
 debug: $(OBJS)
-	ctags *.h *.c
-	$(CC) $(CFLAGS) $(LIBS) -o volta $(OBJS)
+	$(CC) $(CFLAGS) -o volta $(OBJS) $(LIBS)
+
+
+########################################################################
+### U T I L
+########################################################################
 
 parsegraph: parser_graph.xml parser_graph.pdf parser_graph.dot
 parser_graph.xml parser_graph.pdf parser_graph.dot: parser.rl
@@ -56,17 +77,16 @@ profile:
 	pprof --dot ./volta $(CPUPROFILE) | dot -Tpng > $(CPUPROFILE).png
 	pprof --text ./volta $(CPUPROFILE)
 
+tags:
+	ctags *.h *.c
 
-########################################################################
-### U T I L
-########################################################################
-
-cleanall: clean
+clobber: clean
 	rm -f parser.c volta.db ChangeLog tags
 
 clean:
-	-rm -f volta volta_debug* parser_graph.* *.o *.prof*
+	-rm -f volta parser_graph.* *.o *.prof*
 
+# requires BSD tar
 release: VERSION = $(shell hg id -t | awk '{ print $$1 }')
 release: cleanall parser.c
 	hg log --style changelog > ChangeLog

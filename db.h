@@ -31,7 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef _DB_H
 #define _DB_H
 
-#include <sqlite3.h>
+#include "sqlite3.h"
 
 extern const unsigned short int DB_VERSION;
 

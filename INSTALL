@@ -2,27 +2,8 @@
 Building volta
 ===============
 
-Volta should build with minimal effort.  First, make sure you have
-dependencies installed.
-
-
-Dependencies
-------------
-
-Currently, volta requires the following to compile:
-
-Regular dependencies:
-
-  - GNU make (http://www.gnu.org/software/make/)
-  - sqlite3 (http://www.sqlite.org/)
-
-Development dependencies (optional):
-
-  - ragel (http://www.complang.org/ragel/)
-  - mercurial (http://mercurial.selenic.com/)
-  - google-perftools (http://code.google.com/p/google-perftools/)
-  - graphviz (http://www.graphviz.org/)
-  - ctags (http://ctags.sourceforge.net/)
+Volta should build with minimal effort and without external dependencies, except for
+GNU make. (http://www.gnu.org/software/make/)
 
 
 Compiling
@@ -63,4 +44,12 @@ Volta source can be cloned via Mercurial.  The repo is found at:
 You can use the 'debug' make target to compile a (very noisy) binary
 that contains gdb symbols and perftool hooks.  Set the CPUPROFILE
 environment variable to "cpu.prof" to generate a profile.
+
+If you're hacking, you'll want these dependencies installed too.
+
+  - ragel (http://www.complang.org/ragel/)
+  - mercurial (http://mercurial.selenic.com/)
+  - google-perftools (http://code.google.com/p/google-perftools/)
+  - graphviz (http://www.graphviz.org/)
+  - ctags (http://ctags.sourceforge.net/)
 

@@ -129,11 +129,11 @@ char *copy_string_token( char *, unsigned short int );
 struct in_addr *copy_ipv4_token( char *, unsigned short int );
 
 int accept_loop( void );
-struct request *parse( char *p );
 void process( char * );
-struct request *parse( char * );
-void populate_request( struct request * );
-void cleanup_request( struct request * );
+request *parse( char * );
+request *init_request( void );
+void populate_request( request * );
+void cleanup_request( request * );
 
 #endif
 
