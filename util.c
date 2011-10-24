@@ -39,10 +39,10 @@ void
 usage( char *prg )
 {
 	printf( "%s [-vh] [-f <filename>] [-d <level>]\n", prg );
-	printf( "    -v Display version\n" );
 	printf( "    -d <level> Show debug information on stderr\n" );
+	printf( "    -f <filename> Specify the database file to use (default is './volta.db')\n");
 	printf( "    -h Usage (you're lookin' at it)\n" );
-	printf( "    -f <filename> Specify the database to use (default is 'volta.db' in the cwd.)\n");
+	printf( "    -v Display version\n" );
 	printf( "\n" );
 	return;
 }
@@ -80,6 +80,41 @@ debug( int level, char *file, int line, const char *fmt, ... )
 
 
 /*
+ * Output to stdout for squid, unless the debug level is at or above 4.
+ */
+void
+out( const char *str )
+{
+	if ( v.debugmode >= 4 ) return;
+	fprintf( stdout, "%s", str );
+	return;
+}
+
+
+/*
+ * Given a string, reverse it in place.
+ */
+void
+reverse_str( char *str )
+{
+	int i = 0;
+	int tmp = 0;
+	int j = strlen( str ) - 1;
+
+	while ( i < j ) {
+		tmp    = str[i];
+		str[i] = str[j];
+		str[j] = tmp;
+
+		i++;
+		j--;
+	}
+
+	return;
+}
+
+
+/*
  * Append 'buf' to the end of 'line', a la strcat, except dynamically
  * grow memory for the target string.
  *
@@ -103,10 +138,10 @@ extend_line( char *line, const char *buf )
 		new_len = offset + LINE_BUFSIZE;
 	}
 
-	debug( 4, LOC, "Extending line %d to %d bytes at offset %d\n", v.timer.lines+1, new_len, offset );
+	debug( 5, LOC, "Extending line %d to %d bytes at offset %d\n", v.timer.lines+1, new_len, offset );
 	if ( new_len > LINE_MAX || (line_realloc = realloc(line, sizeof(char) * new_len)) == NULL ) {
-		debug( 1, LOC, "Ignoring line, error while allocating memory: %s\n",
-				(line_realloc == NULL ? strerror(errno) : "Line too large") );
+		debug( 5, LOC, "Ignoring line %d, error while allocating memory: %s\n",
+				v.timer.lines+1, (line_realloc == NULL ? strerror(errno) : "Line too large") );
 		if ( line != NULL ) free( line ), line = NULL;
 		printf( "\n" );
 	}
@@ -138,7 +173,7 @@ slurp_file( char *file )
 	}
 
 	if ( (contents = malloc( sb.st_size + 1 )) == NULL ) {
-		debug( 1, LOC, "Unable to allocate memory for file '%s': %s\n",
+		debug( 5, LOC, "Unable to allocate memory for file '%s': %s\n",
 				file, strerror(errno) );
 		return( NULL );
 	}
@@ -150,7 +185,7 @@ slurp_file( char *file )
 	}
 
 	if ( fread( contents, sizeof(char), sb.st_size, fh ) != (unsigned int)sb.st_size ) {
-		debug( 1, LOC, "Short read for file '%s'?: %s\n", file );
+		debug( 5, LOC, "Short read for file '%s'?: %s\n", file );
 		fclose( fh );
 		return( NULL );
 	}
@@ -172,7 +207,7 @@ copy_string_token( char *string, unsigned short int length )
 	if ( string == NULL || length == 0 ) return ( NULL );
 
 	if ( (alloc_ptr = calloc( length + 1, sizeof(char) )) == NULL ) {
-		debug( 1, LOC, "Unable to allocate memory for token: %s\n", strerror(errno) );
+		debug( 5, LOC, "Unable to allocate memory for token: %s\n", strerror(errno) );
 		return( NULL );
 	}
 
@@ -199,7 +234,7 @@ copy_ipv4_token( char *ip_string, unsigned short int length )
 	c_ip[ length ] = '\0';
 
 	if ( (alloc_ptr = calloc( length, sizeof(struct in_addr) )) == NULL ) {
-		debug( 1, LOC, "Unable to allocate memory for ip '%s': %s\n",
+		debug( 5, LOC, "Unable to allocate memory for ip '%s': %s\n",
 				c_ip, strerror(errno) );
 	}
 

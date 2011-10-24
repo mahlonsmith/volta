@@ -30,116 +30,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "volta.h"
 
-%%{
-	machine redirector;
-
-	action success { valid = 1; }
-	action error   { valid = 0; }
-
-	action channel_id_found  {
-		debug( 1, LOC, "Channel ID found in redirector input.  Set 'url_rewrite_concurrency' to '0' in squid.\n" );
-		fbreak;
-	}
-
-	action scheme_start  { p_request->tokens.scheme_start  = fpc; }
-	action scheme_finish { p_request->tokens.scheme_length = fpc - ( *pe + p_request->tokens.scheme_start ); }
-	action scheme_error  { debug( 3, LOC, "Unable to parse scheme.\n" ); }
-
-	action host_start  { p_request->tokens.host_start  = fpc; }
-	action host_finish { p_request->tokens.host_length = fpc - ( *pe + p_request->tokens.host_start ); }
-	action host_error  { debug( 3, LOC, "Unable to parse hostname.\n" ); }
-
-	action port_start  { p_request->tokens.port_start  = fpc; }
-	action port_finish { p_request->tokens.port_length = fpc - ( *pe + p_request->tokens.port_start ); }
-
-	action path_start  { p_request->tokens.path_start  = fpc; }
-	action path_finish { p_request->tokens.path_length = fpc - ( *pe + p_request->tokens.path_start ); }
-
-	action meth_start  { p_request->tokens.meth_start  = fpc; }
-	action meth_finish { p_request->tokens.meth_length = fpc - ( *pe + p_request->tokens.meth_start ); }
-	action meth_error  { debug( 3, LOC, "Unable to parse method.\n" ); }
-
-	action c_ip_start  { p_request->tokens.c_ip_start  = fpc; }
-	action c_ip_finish { p_request->tokens.c_ip_length = fpc - ( *pe + p_request->tokens.c_ip_start ); }
-	action c_ip_error  { debug( 3, LOC, "Unable to parse the client IP address.\n" ); }
-
-    # 
-    # Squid line: URL <SP> client_ip "/" fqdn <SP> user <SP> method [<SP> kvpairs]<NL>
-    # 
-    # URI Syntax (RFC 3986) misc notes:
-    #
-    # - Scheme isn't passed to redirectors on CONNECT method requests
-    #
-    # - Hostname segments aren't supposed to be individually greater than 63 chars,
-    #   and the hostname in total shouldn't exceed 255.  They also shouldn't be entirely
-    #   made up of digits, or contain underscores.  In practice, these rules appear to
-    #   be violated constantly by some pretty big sites. I'm looking at you, facebook.
-    #   (( alnum ) | ( alnum . [a-zA-Z0-9\-]{0,63} . alnum )) & !( digit+ );
-    #
-    # - ipv6 has some utterly insane rules (RFC 5952) in the name of "shortcuts", which
-    #   only seem like shortcuts to someone writing IP addresses by hand.  Anyone that
-    #   has to parse (or even just read) them has a bunch of seemingly arbitrary work
-    #   dumped in their lap.  Heck, it's impossible to even search for an ipv6 address
-    #   that contains zeros in a text editor, because you have no idea what how it might
-    #   be represented.  Rad!
-    #
-    #   The parser just trusts any ipv6 squid hands us as being valid, without
-    #   any real parsing/validation, other than it consists of hex digits and colons.
-    #
-    # - This parser originally validated path/query/fragment as well, but there were
-    #   enough inconsistencies with unescaped chars and other real-life RFC deviations
-    #   that I opted to just accept what we get from squid.
-	#
-	# - Redirectors aren't handed any userinfo (http://mahlon:password@example.com),
-    #   so no need to check for that.
-    #
-
-	host_component = alnum | ( alnum [a-zA-Z0-9\-_]* alnum );
-	pchar          = ( alnum | [\-._~!$%&'()*+,;=] );
-	path_segment   = '/' ( any - space )*;
-
-	hostname       = host_component ( '.' host_component )* '.'?;
-	ipv4           = digit{1,3} '.' digit{1,3} '.' digit{1,3} '.' digit{1,3};
-	ipv6           = ( xdigit | ':' )+;
-
-	channel_id     = ( digit+ space )      %channel_id_found;
-	scheme         = ( alpha{3,5} '://' )  >scheme_start %scheme_finish @!scheme_error;
-	host           = ( hostname | ipv4 )   >host_start   %host_finish   @!host_error;
-	port           = ( ':' digit{1,5} )    >port_start   %port_finish;
-	path           = path_segment*         >path_start   %path_finish;
-	client_ip      = ipv4                  >c_ip_start   %c_ip_finish   @!c_ip_error;
-	method         = upper+                >meth_start   %meth_finish   @!meth_error;
-
-	Line = (
- 		start: (
-			channel_id? -> Url
-		),
-
-		Url: (
-		   	scheme? host port? path? space -> Client
- 		),
-
-		Client: (
-			client_ip '/' ( hostname | '-' ) space -> User
-		),
-
-		User: (
-			pchar+ space -> Method
-		),
-
-		Method: (
-			method -> KVPairs
-		),
-
-		KVPairs: (
-			( space any+ )? -> final
-		)
- 	) %success @!error;
-
-
-	main := Line '\n';
-}%%
-%% write data;
+#define MARK_S( LBL ) p_request->tokens.LBL ## _start = p;
+#define MARK_E( LBL ) p_request->tokens.LBL ## _length = p - ( *pe + p_request->tokens.LBL ## _start );
 
 /* 
  * Tokenize an incoming line from squid, returning a parsed and populated
@@ -175,21 +67,104 @@ request *
 parse( char *line )
 {
    	/* machine required vars */
-	int  cs   = 0;
+	unsigned short int cs = 1;
 	char *p   = line;
 	char *pe  = p + strlen(p);
 	char *eof = NULL;
 
 	/* the client request pointer */
-	unsigned char valid = 0;
 	request *p_request = init_request();
 
-	/* enter state machine */
-	%% write init;
+%%{
+	machine input_parser;
+
+	action channel_id_found  {
+		debug( 1, LOC, "Channel ID found in redirector input.  Set 'url_rewrite_concurrency' to '0' in squid.\n" );
+		fbreak;
+	}
+
+	action scheme_start  { MARK_S(scheme) }
+	action scheme_finish { MARK_E(scheme) }
+	action host_start    { MARK_S(host) }
+	action host_finish   { MARK_E(host) }
+	action port_start    { MARK_S(port) }
+	action port_finish   { MARK_E(port) }
+	action path_start    { MARK_S(path) }
+	action path_finish   { MARK_E(path) }
+	action meth_start    { MARK_S(meth) }
+	action meth_finish   { MARK_E(meth) }
+	action c_ip_start    { MARK_S(c_ip) }
+	action c_ip_finish   { MARK_E(c_ip) }
+
+	action host_error   { debug( 3, LOC, "Unable to parse hostname.\n" ); }
+	action scheme_error { debug( 3, LOC, "Unable to parse scheme.\n" ); }
+	action meth_error   { debug( 3, LOC, "Unable to parse method.\n" ); }
+	action c_ip_error   { debug( 3, LOC, "Unable to parse the client IP address.\n" ); }
+
+	# 
+	# Squid line: URL <SP> client_ip "/" fqdn <SP> user <SP> method [<SP> kvpairs]<NL>
+	# 
+	# URI Syntax (RFC 3986) misc notes:
+	#
+	# - Scheme isn't passed to redirectors on CONNECT method requests
+	#
+	# - Hostname segments aren't supposed to be individually greater than 63 chars,
+	#   and the hostname in total shouldn't exceed 255.  They also shouldn't be entirely
+	#   made up of digits, or contain underscores.  In practice, these rules appear to
+	#   be violated constantly by some pretty big sites.
+	#   (( alnum ) | ( alnum . [a-zA-Z0-9\-]{0,63} . alnum )) & !( digit+ );
+	#
+	# - ipv6 has some utterly insane rules (RFC 5952) in the name of "shortcuts", which
+	#   only seem like shortcuts to someone writing IP addresses by hand.  Anyone that
+	#   has to parse (or even just read) them has a bunch of seemingly arbitrary work
+	#   dumped in their lap.  Heck, it's impossible to even search for an ipv6 address
+	#   that contains zeros in a text editor, because you have no idea what how it might
+	#   be represented.  Rad!
+	#
+	#   The parser just trusts any ipv6 squid hands us as being valid, without
+	#   any real parsing/validation, other than it consists of hex digits and colons.
+	#
+	# - This parser originally validated path/query/fragment as well, but there were
+	#   enough inconsistencies with unescaped chars and other real-life RFC deviations
+	#   that I opted to just accept what we get from squid.
+	#
+	# - Redirectors aren't handed any userinfo (http://mahlon:password@example.com),
+	#   so no need to check for that.
+	#
+
+	host_component = alnum | ( alnum [a-zA-Z0-9\-_]* alnum );
+	pchar          = ( alnum | [\-._~!$%&'()*+,;=] );
+	path_segment   = '/' ( any - space )*;
+
+	hostname       = host_component ( '.' host_component )* '.'?;
+	ipv4           = digit{1,3} '.' digit{1,3} '.' digit{1,3} '.' digit{1,3};
+	ipv6           = ( xdigit | ':' )+;
+
+	channel_id     = ( digit+ space )      %channel_id_found;
+	scheme         = ( alpha{3,5} '://' )  >scheme_start %scheme_finish @!scheme_error;
+	host           = ( hostname | ipv4 )   >host_start   %host_finish   @!host_error;
+	port           = ( ':' digit{1,5} )    >port_start   %port_finish;
+	path           = path_segment*         >path_start   %path_finish;
+	client_ip      = ipv4                  >c_ip_start   %c_ip_finish   @!c_ip_error;
+	method         = upper+                >meth_start   %meth_finish   @!meth_error;
+
+	SquidLine = (
+ 		start:   channel_id?                            -> Url,
+		Url:     scheme? host port? path? space         -> Client,
+		Client:  client_ip '/' ( hostname | '-' ) space -> User,
+		User:    pchar+ space                           -> Method,
+		Method:  method                                 -> KVPairs,
+		KVPairs: ( space any+ )?                        -> final
+ 	);
+
+	main := SquidLine '\n';
+}%%
+
+	/* state machine */
 	%% write exec;
 
 	/* If we were given an invalid line, bail early */
-	if ( valid == 0 ) {
+	if ( cs < %%{ write first_final; }%% ) {
 		free( p_request ), p_request = NULL;
 		debug( 3, LOC, "Invalid line (%d), skipped\n", v.timer.lines + 1 );
 		debug( 4, LOC, "%s", line );
@@ -210,11 +185,13 @@ init_request( void )
 {
 	request *p_request = NULL;
 	if ( (p_request = malloc( sizeof(request) )) == NULL ) {
-		debug( 1, LOC, "Unable to allocate memory for request struct: %s\n", strerror(errno) );
+		debug( 5, LOC, "Unable to allocate memory for request struct: %s\n", strerror(errno) );
 		return( NULL );
 	}
+
 	p_request->scheme    = NULL;
 	p_request->host      = NULL;
+	p_request->tld       = NULL;
 	p_request->port      = NULL;
 	p_request->path      = NULL;
 	p_request->user      = NULL;
@@ -222,48 +199,95 @@ init_request( void )
 	p_request->client_ip = NULL;
 
 	p_request->tokens.scheme_start  = NULL;
-	p_request->tokens.host_start    = NULL;
-	p_request->tokens.port_start    = NULL;
-	p_request->tokens.path_start    = NULL;
-	p_request->tokens.meth_start    = NULL;
-	p_request->tokens.c_ip_start    = NULL;
 	p_request->tokens.scheme_length = 0;
+	p_request->tokens.host_start    = NULL;
 	p_request->tokens.host_length   = 0;
+	p_request->tokens.port_start    = NULL;
 	p_request->tokens.port_length   = 0;
+	p_request->tokens.path_start    = NULL;
 	p_request->tokens.path_length   = 0;
+	p_request->tokens.meth_start    = NULL;
 	p_request->tokens.meth_length   = 0;
+	p_request->tokens.c_ip_start    = NULL;
 	p_request->tokens.c_ip_length   = 0;
 
 	return p_request;
 }
 
 
+#define COPY_STR( LBL ) copy_string_token( p_request->tokens.LBL ## _start, p_request->tokens.LBL ## _length )
+#define COPY_IP4( LBL ) copy_ipv4_token(   p_request->tokens.LBL ## _start, p_request->tokens.LBL ## _length )
+
 /*
  * Take the previously parsed token locations and copy them into the request struct.
  *
  */
 void
-populate_request( struct request *p_request )
+populate_request( request *p_request )
 {
-	p_request->scheme =
-		copy_string_token( p_request->tokens.scheme_start, p_request->tokens.scheme_length );
-	p_request->host =
-		copy_string_token( p_request->tokens.host_start, p_request->tokens.host_length );
-	p_request->port =
-		copy_string_token( p_request->tokens.port_start, p_request->tokens.port_length );
-	p_request->path =
-		copy_string_token( p_request->tokens.path_start, p_request->tokens.path_length );
-	p_request->method =
-		copy_string_token( p_request->tokens.meth_start, p_request->tokens.meth_length );
-	p_request->client_ip =
-		copy_ipv4_token( p_request->tokens.c_ip_start, p_request->tokens.c_ip_length );
+	p_request->scheme    = COPY_STR( scheme );
+	p_request->host      = COPY_STR( host );
+	p_request->port      = COPY_STR( port );
+	p_request->path      = COPY_STR( path );
+	p_request->method    = COPY_STR( meth );
+	p_request->client_ip = COPY_IP4( c_ip );
+
+	parse_tld( p_request );
 
 	return;
 }
 
 
 /*
- * Release memory used by request struct.
+ * Pull the top level domain out of the requested hostname.
+ *
+ */
+void
+parse_tld( request *p_request )
+{
+	unsigned short int cs = 5, mark = 0;
+	char *p   = p_request->host;
+	char *pe  = p + p_request->tokens.host_length;
+	char *ts  = 0, *te = 0, *eof = NULL;
+
+%%{
+    machine tld_parser;
+
+	host_component = alnum | ( alnum [a-zA-Z0-9\-_]* alnum );
+	tld = ( host_component '.' host_component );
+
+	main := |*
+		tld => { mark = ( p_request->tokens.host_length - (int)strlen(te) ); };
+	*|;
+}%%
+
+	/* It's far easier (and faster) to scan from left to right rather than
+	   backtrack, so start by reversing the requested host string. */
+	reverse_str( p_request->host );
+
+	/* scanner */
+	%% write exec;
+
+	/* If there was a mark, then allocate memory and copy. */
+	if ( mark != 0 ) {
+		if ( (p_request->tld = calloc( mark + 1, sizeof(char) )) == NULL ) {
+			debug( 5, LOC, "Unable to allocate memory for tld token: %s\n", strerror(errno) );
+			reverse_str( p_request->host );
+			return;
+		}
+
+		memcpy( p_request->tld, p_request->host, mark );
+		reverse_str( p_request->tld );
+	}
+
+	/* restore the hostname. */
+	reverse_str( p_request->host );
+	return;
+}
+
+
+/*
+ * Release memory used by the request struct.
  *
  */
 void
@@ -273,6 +297,7 @@ cleanup_request( struct request *p_request )
 
 	free( p_request->scheme );
 	free( p_request->host );
+	free( p_request->tld );
 	free( p_request->port );
 	free( p_request->path );
 	free( p_request->method );

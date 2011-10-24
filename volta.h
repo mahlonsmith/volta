@@ -91,6 +91,7 @@ extern struct v_globals v;        /* defined in main.c */
 typedef struct request {
 	char   *scheme;
 	char   *host;
+	char   *tld;
 	char   *path;
 	char   *port;
 	struct in_addr *client_ip;
@@ -122,6 +123,8 @@ int getopt( int, char * const [], const char *);
 
 void usage( char * );
 void debug( int, char *, int, const char *, ... );
+void out( const char * );
+void reverse_str( char * );
 void report_speed( void );
 char *slurp_file( char * );
 char *extend_line( char *, const char * );
@@ -133,6 +136,7 @@ void process( char * );
 request *parse( char * );
 request *init_request( void );
 void populate_request( request * );
+void parse_tld( request * );
 void cleanup_request( request * );
 
 #endif

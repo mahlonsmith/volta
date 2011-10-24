@@ -1,9 +1,15 @@
 --- vim: set noet nosta sw=4 ts=4 ft=sql:
-
 BEGIN;
 
-DROP TABLE IF EXISTS rules;
-CREATE TABLE rules (
+DROP TABLE IF EXISTS requests;
+CREATE TABLE requests (
+	hi INT,
+	rewrite_rule INTEGER REFERENCES rewrite_rules( id ) ON DELETE SET NULL ON UPDATE CASCADE DEFERRABLE INITIALLY DEFERRED 
+);
+
+DROP TABLE IF EXISTS rewrite_rules;
+CREATE TABLE rewrite_rules (
+	id    INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
 	redir TINYINT NOT NULL DEFAULT 0 CHECK( redir IN (0,1,2) )
 );
 
