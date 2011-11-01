@@ -71,6 +71,9 @@ db_attach( void )
 		}
 	}
 
+	/* initialize prepared statements */
+	if ( prepare_statements() != 0 ) return SQLITE_ERROR;
+
 	return( SQLITE_OK );
 }
 
@@ -142,5 +145,145 @@ db_version( void )
 
 	sqlite3_finalize( stmt );
 	return( version );
+}
+
+
+/*
+ * Initialize the DB statements, returning 0 on success.
+ *
+ */
+unsigned short int
+prepare_statements( void )
+{
+	unsigned short int rv = 0;
+
+	rv = rv + sqlite3_prepare_v2( v.db, DBSQL_GET_REWRITE_RULE, -1, &v.db_stmt.get_rewrite_rule, NULL );
+	if ( rv != 0 )
+		debug( 2, LOC, "Error preparing DB statement \"%s\": %s\n",
+				DBSQL_GET_REWRITE_RULE, sqlite3_errmsg(v.db) );
+
+	rv = rv + sqlite3_prepare_v2( v.db, DBSQL_MATCH_REQUEST, -1, &v.db_stmt.match_request, NULL );
+	if ( rv != 0 )
+		debug( 2, LOC, "Error preparing DB statement \"%s\": %s\n",
+				DBSQL_MATCH_REQUEST, sqlite3_errmsg(v.db) );
+
+	return( rv );
+}
+
+
+/*
+ * Initialize and return a pointer to a new rewrite object.
+ *
+ */
+rewrite *
+init_rewrite( void )
+{
+	rewrite *p_rewrite = NULL;
+	if ( (p_rewrite = malloc( sizeof(rewrite) )) == NULL ) {
+		debug( 5, LOC, "Unable to allocate memory for rewrite struct: %s\n", strerror(errno) );
+		return( NULL );
+	}
+
+	p_rewrite->scheme  = NULL;
+	p_rewrite->host    = NULL;
+	p_rewrite->path    = NULL;
+	p_rewrite->port    = 0;
+	p_rewrite->redir   = 0;
+
+	return( p_rewrite );
+}
+
+
+#define COPY_REWRITE_ROW( INDEX ) copy_string_token( \
+			(char *)sqlite3_column_text( v.db_stmt.get_rewrite_rule, INDEX ),\
+			sqlite3_column_bytes( v.db_stmt.get_rewrite_rule, INDEX ))
+/*
+ * Given a request struct pointer, try and find the best matching
+ * rewrite rule, returning a pointer to a rewrite struct.
+ *
+ */
+rewrite *
+prepare_rewrite( request *p_request )
+{
+	if ( p_request == NULL ) return( NULL );
+
+	unsigned short int rewrite_id = 0;
+	rewrite *p_rewrite = init_rewrite();
+
+	sqlite3_bind_text( v.db_stmt.match_request, 3, p_request->tld,       -1, SQLITE_STATIC );
+	sqlite3_bind_text( v.db_stmt.match_request, 1, p_request->scheme,    -1, SQLITE_STATIC );
+	sqlite3_bind_text( v.db_stmt.match_request, 2, p_request->host,      -1, SQLITE_STATIC );
+	sqlite3_bind_text( v.db_stmt.match_request, 3, p_request->tld,       -1, SQLITE_STATIC );
+	sqlite3_bind_text( v.db_stmt.match_request, 4, p_request->path,      -1, SQLITE_STATIC );
+	sqlite3_bind_int(  v.db_stmt.match_request, 5, p_request->port );
+	/*
+	sqlite3_bind_text( v.db_stmt.match_request, 6, NULL, -1, SQLITE_STATIC );
+	sqlite3_bind_text( v.db_stmt.match_request, 6, p_request->client_ip, -1, SQLITE_STATIC );
+	*/
+	sqlite3_bind_text( v.db_stmt.match_request, 7, p_request->user,      -1, SQLITE_STATIC );
+	sqlite3_bind_text( v.db_stmt.match_request, 8, p_request->method,    -1, SQLITE_STATIC );
+
+	switch ( sqlite3_step( v.db_stmt.match_request )) {
+		case SQLITE_ROW:
+			rewrite_id = sqlite3_column_int( v.db_stmt.match_request, 0 );
+			break;
+
+		case SQLITE_DONE:
+			break;
+
+		default:
+			return( NULL );
+	}
+
+	/* FIXME: CHECK for rewrite_rule being NULL on successful match, emit warning, continue */
+
+	/* return early if we didn't get a matching request */
+	if ( rewrite_id == 0 ) return( NULL );
+
+	/* pull the rewrite data, populate the struct.  only one
+	 * row should ever be returned for this. */
+	sqlite3_bind_int( v.db_stmt.get_rewrite_rule, 1, rewrite_id );
+	switch ( sqlite3_step( v.db_stmt.get_rewrite_rule )) {
+		case SQLITE_ROW:
+			p_rewrite->scheme = COPY_REWRITE_ROW( 1 );
+			p_rewrite->host   = COPY_REWRITE_ROW( 2 );
+			p_rewrite->path   = COPY_REWRITE_ROW( 3 );
+			p_rewrite->port   = sqlite3_column_int( v.db_stmt.get_rewrite_rule, 4 );
+			p_rewrite->redir  = sqlite3_column_int( v.db_stmt.get_rewrite_rule, 5 );
+			break;
+
+		case SQLITE_DONE:
+			break;
+
+		default:
+			return( NULL );
+	}
+
+	return( p_rewrite );
+}
+
+
+/*
+ * Release memory used by the rewrite struct and
+ * reset prepared statements.
+ *
+ */
+void
+finish_rewrite( rewrite *p_rewrite )
+{
+	sqlite3_reset( v.db_stmt.get_rewrite_rule );
+	sqlite3_reset( v.db_stmt.match_request );
+	sqlite3_clear_bindings( v.db_stmt.get_rewrite_rule );
+	sqlite3_clear_bindings( v.db_stmt.match_request );
+
+	if ( p_rewrite == NULL ) return;
+
+	free( p_rewrite->scheme );
+	free( p_rewrite->host );
+	free( p_rewrite->path );
+
+	free( p_rewrite ), p_rewrite = NULL;
+
+	return;
 }
 

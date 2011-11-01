@@ -48,6 +48,8 @@ main( int argc, char *argv[] )
 	v.debugmode = 0;
 #endif
 
+	(void)signal( SIGINT, shutdown_handler );
+
 	/* default database file name */
 	v.db = NULL;
 	strcpy( v.dbname, "volta.db" );
@@ -114,6 +116,35 @@ main( int argc, char *argv[] )
 	if ( db_attach() != SQLITE_OK ) exit( 1 );
 
 	/* enter stdin parsing loop */
-	return( accept_loop() );
+	unsigned char exitval = accept_loop();
+	shutdown_actions();
+	return( exitval );
+}
+
+
+/*
+ * Perform actions in preparation for a graceful shutdown.
+ *
+ */
+void
+shutdown_actions( void )
+{
+	sqlite3_finalize( v.db_stmt.match_request );
+	sqlite3_finalize( v.db_stmt.get_rewrite_rule );
+	sqlite3_close( v.db );
+	report_speed();
+}
+
+
+/*
+ * Signal handler for shutting things down.
+ *
+ */
+void
+shutdown_handler( int sig )
+{
+	debug( 1, LOC, "Exiting via signal %d.\n", sig );
+	shutdown_actions();
+	exit( 0 );
 }
 

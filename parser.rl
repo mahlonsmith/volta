@@ -70,13 +70,13 @@ parse( char *line )
 	unsigned short int cs = 1;
 	char *p   = line;
 	char *pe  = p + strlen(p);
-	char *eof = NULL;
+	char *eof = pe;
 
 	/* the client request pointer */
 	request *p_request = init_request();
 
 %%{
-	machine input_parser;
+	machine squidline_parser;
 
 	action channel_id_found  {
 		debug( 1, LOC, "Channel ID found in redirector input.  Set 'url_rewrite_concurrency' to '0' in squid.\n" );
@@ -87,7 +87,7 @@ parse( char *line )
 	action scheme_finish { MARK_E(scheme) }
 	action host_start    { MARK_S(host) }
 	action host_finish   { MARK_E(host) }
-	action port_start    { MARK_S(port) }
+	action port_start    { p_request->tokens.port_start = p+1; } # strip leading colon
 	action port_finish   { MARK_E(port) }
 	action path_start    { MARK_S(path) }
 	action path_finish   { MARK_E(path) }
@@ -192,7 +192,7 @@ init_request( void )
 	p_request->scheme    = NULL;
 	p_request->host      = NULL;
 	p_request->tld       = NULL;
-	p_request->port      = NULL;
+	p_request->port      = 0;
 	p_request->path      = NULL;
 	p_request->user      = NULL;
 	p_request->method    = NULL;
@@ -227,12 +227,32 @@ populate_request( request *p_request )
 {
 	p_request->scheme    = COPY_STR( scheme );
 	p_request->host      = COPY_STR( host );
-	p_request->port      = COPY_STR( port );
 	p_request->path      = COPY_STR( path );
 	p_request->method    = COPY_STR( meth );
 	p_request->client_ip = COPY_IP4( c_ip );
 
-	parse_tld( p_request );
+	(void)parse_port( p_request );
+	(void)parse_tld(  p_request );
+
+	return;
+}
+
+
+/*
+ * Pull out the port number and convert it to an integer before
+ * storing in the request struct.
+ *
+ */
+void
+parse_port( request *p_request )
+{
+	if ( p_request->tokens.port_start == NULL || p_request->tokens.port_length == 0 ) return;
+
+	char port[5];
+
+	(void)strncpy( port, p_request->tokens.port_start, p_request->tokens.port_length );
+	port[ p_request->tokens.port_length ] = '\0';
+	(void)sscanf( port, "%hu", &p_request->port );
 
 	return;
 }
@@ -248,7 +268,7 @@ parse_tld( request *p_request )
 	unsigned short int cs = 5, mark = 0;
 	char *p   = p_request->host;
 	char *pe  = p + p_request->tokens.host_length;
-	char *ts  = 0, *te = 0, *eof = NULL;
+	char *ts  = 0, *te = 0, *eof = pe;
 
 %%{
     machine tld_parser;
@@ -291,14 +311,13 @@ parse_tld( request *p_request )
  *
  */
 void
-cleanup_request( struct request *p_request )
+finish_request( request *p_request )
 {
 	if ( p_request == NULL ) return;
 
 	free( p_request->scheme );
 	free( p_request->host );
 	free( p_request->tld );
-	free( p_request->port );
 	free( p_request->path );
 	free( p_request->method );
 	free( p_request->client_ip );

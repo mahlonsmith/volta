@@ -93,7 +93,6 @@ accept_loop( void )
 
 	/* stdin closed */
 	debug( 1, LOC, "End of stream\n" );
-	report_speed();
 	return( 0 );
 }
 

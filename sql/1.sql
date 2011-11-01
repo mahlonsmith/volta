@@ -1,16 +1,28 @@
 --- vim: set noet nosta sw=4 ts=4 ft=sql:
 BEGIN;
 
-DROP TABLE IF EXISTS requests;
-CREATE TABLE requests (
-	hi INT,
+CREATE TABLE IF NOT EXISTS requests (
+	scheme VARCHAR(5)   DEFAULT NULL,
+	host   VARCHAR(255) DEFAULT NULL,
+	tld    VARCHAR(255) DEFAULT NULL,
+	path   TEXT         DEFAULT NULL,
+	port   INTEGER      DEFAULT NULL,
+	ip     VARCHAR(72)  DEFAULT NULL,
+	user   VARCHAR(40)  DEFAULT NULL,
+	method VARCHAR(10)  DEFAULT NULL,
 	rewrite_rule INTEGER REFERENCES rewrite_rules( id ) ON DELETE SET NULL ON UPDATE CASCADE DEFERRABLE INITIALLY DEFERRED 
 );
+CREATE INDEX IF NOT EXISTS host_idx ON requests ( host );
+CREATE INDEX IF NOT EXISTS tld_idx  ON requests ( tld );
+CREATE INDEX IF NOT EXISTS path_idx ON requests ( path );
 
-DROP TABLE IF EXISTS rewrite_rules;
-CREATE TABLE rewrite_rules (
-	id    INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-	redir TINYINT NOT NULL DEFAULT 0 CHECK( redir IN (0,1,2) )
+CREATE TABLE IF NOT EXISTS rewrite_rules (
+	id     INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+	scheme VARCHAR(5)   DEFAULT NULL,
+	host   VARCHAR(255) DEFAULT NULL,
+	path   TEXT         DEFAULT NULL,
+	port   INTEGER      DEFAULT NULL,
+	redir  TINYINT NOT NULL DEFAULT 0 CHECK( redir IN (0,1,2) )
 );
 
 COMMIT;

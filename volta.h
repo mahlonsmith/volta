@@ -77,6 +77,12 @@ struct v_globals {
 	char dbname[128];             /* path to database file */
 	struct sqlite3 *db;           /* database handle */
 
+	/* prepared statements */
+	struct {
+		struct sqlite3_stmt *match_request;
+		struct sqlite3_stmt *get_rewrite_rule;
+	} db_stmt;
+
 	struct {
 		time_t start;            /* start time */
 		unsigned long int lines; /* line count for determining speed */
@@ -93,7 +99,7 @@ typedef struct request {
 	char   *host;
 	char   *tld;
 	char   *path;
-	char   *port;
+	unsigned short int port;
 	struct in_addr *client_ip;
 	char   *user;
 	char   *method;
@@ -115,6 +121,19 @@ typedef struct request {
 } request;
 
 /*
+ * The URL elements to rewrite a user's request into.
+ *
+ */
+typedef struct rewrite {
+	char *scheme;
+	char *host;
+	char *path;
+	unsigned short int port;
+	unsigned short int redir;
+} rewrite;
+
+
+/*
  *
  * Function prototypes
  *
@@ -131,13 +150,16 @@ char *extend_line( char *, const char * );
 char *copy_string_token( char *, unsigned short int );
 struct in_addr *copy_ipv4_token( char *, unsigned short int );
 
+void shutdown_handler( int );
+void shutdown_actions( void );
 int accept_loop( void );
 void process( char * );
 request *parse( char * );
 request *init_request( void );
 void populate_request( request * );
 void parse_tld( request * );
-void cleanup_request( request * );
+void parse_port( request * );
+void finish_request( request * );
 
 #endif
 

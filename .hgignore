@@ -1,6 +1,6 @@
 ^volta$
 ^volta.db$
-^parser_graph.*
+^.*_graph.*
 ^tags$
 .*debug
 .*.o

@@ -33,7 +33,7 @@ endif
 ifeq (,$(findstring debug,$(MAKECMDGOALS)))
 	RAGEL_FLAGS = -LCe -G2
 else
-	RAGEL_FLAGS = -Ce -G2
+	RAGEL_FLAGS = -Ces -G2
 endif
 
 # Ensure the parser is included in the objs list
@@ -52,10 +52,11 @@ volta: $(OBJS)
 	strip $@
 
 $(OBJS): volta.h
+db.o: db.h
 
 # don't actually depend on parser.rl, so distributions don't require ragel
 parser.c:
-	ragel $(RAGEL_FLAGS) -s parser.rl -o $@
+	ragel $(RAGEL_FLAGS) parser.rl -o $@
 
 debug: $(OBJS)
 	$(CC) $(CFLAGS) -o volta $(OBJS) $(LIBS)
@@ -65,11 +66,14 @@ debug: $(OBJS)
 ### U T I L
 ########################################################################
 
-parsegraph: parser_graph.xml parser_graph.pdf parser_graph.dot
-parser_graph.xml parser_graph.pdf parser_graph.dot: parser.rl
-	ragel -Vp parser.rl > parser_graph.dot
-	ragel $(RAGEL_FLAGS) -x parser.rl -o parser_graph.xml
-	dot -Tpdf parser_graph.dot > parser_graph.pdf
+parsegraph: squidline_graph.xml squidline_graph.pdf squidline_graph.dot tld_graph.xml tld_graph.pdf tld_graph.dot
+squidline_graph.xml squidline_graph.pdf squidline_graph.dot tld_graph.xml tld_graph.pdf tld_graph.dot: parser.rl
+	ragel -Vp -S squidline_parser parser.rl > squidline_graph.dot
+	ragel -Vp -S tld_parser parser.rl > tld_graph.dot
+	ragel $(RAGEL_FLAGS) -S squidline_parser -x parser.rl -o squidline_graph.xml
+	ragel $(RAGEL_FLAGS) -S tld_parser -x parser.rl -o tld_graph.xml
+	dot -Tpdf squidline_graph.dot > squidline_graph.pdf
+	dot -Tpdf tld_graph.dot > tld_graph.pdf
 
 # export CPUPROFILE="cpu.prof" before running volta for cpu profiling
 # export CPUPROFILE_FREQUENCY=100 (default)
@@ -84,12 +88,12 @@ clobber: clean
 	rm -f parser.c volta.db ChangeLog tags
 
 clean:
-	-rm -f volta parser_graph.* *.o *.prof*
+	-rm -f volta *_graph.* *.o *.prof*
 
 # requires BSD tar
 release: VERSION = $(shell hg id -t | awk '{ print $$1 }')
-release: cleanall parser.c
+release: clobber parser.c
 	hg log --style changelog > ChangeLog
-	tar -C .. --exclude misc --exclude .\*  -s '/^volta/volta-$(VERSION)/' -czvf /tmp/volta-$(VERSION).tgz volta
+	tar -C .. --exclude misc --exclude .\* --exclude \*.rl -s '/^volta/volta-$(VERSION)/' -czvf /tmp/volta-$(VERSION).tgz volta
 	mv /tmp/volta-$(VERSION).tgz .
 

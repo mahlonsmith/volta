@@ -33,6 +33,39 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "sqlite3.h"
 
+#define DBSQL_MATCH_REQUEST "                                       \
+	SELECT rewrite_rule, (                                          \
+		CASE WHEN scheme       IS null THEN 1 ELSE 0 END +          \
+		CASE WHEN host         IS null THEN 1 ELSE 0 END +          \
+		CASE WHEN tld          IS null THEN 1 ELSE 0 END +          \
+		CASE WHEN path         IS null THEN 1 ELSE 0 END +          \
+		CASE WHEN port         IS null THEN 1 ELSE 0 END +          \
+		CASE WHEN ip           IS null THEN 1 ELSE 0 END +          \
+		CASE WHEN user         IS null THEN 1 ELSE 0 END +          \
+		CASE WHEN method       IS null THEN 1 ELSE 0 END +          \
+		CASE WHEN rewrite_rule IS null THEN 1 ELSE 0 END ) as nullc \
+	FROM requests                                                   \
+	WHERE                                                           \
+		( scheme IS NULL OR scheme          = lower(?1) ) AND       \
+		( host   IS NULL OR lower( host )   = lower(?2) ) AND       \
+		( tld    IS NULL OR lower( tld )    = lower(?3) ) AND       \
+		( path   IS NULL OR lower( path ) LIKE '?4%'    ) AND       \
+		( port   IS NULL OR port            = ?5        ) AND       \
+		( ip     IS NULL OR ip              = ?6        ) AND       \
+		( user   IS NULL OR lower( user )   = lower(?7) ) AND       \
+		( method IS NULL OR lower( method ) = lower(?8) ) AND       \
+		rewrite_rule IS NOT null                                    \
+	ORDER BY                                                        \
+		length(path) DESC,                                          \
+		nullc ASC                                                   \
+	LIMIT 1"
+
+/* Pull the entire rewrite rule row. */
+#define DBSQL_GET_REWRITE_RULE "\
+	SELECT * \
+	FROM rewrite_rules \
+	WHERE id = ?1"
+
 extern const unsigned short int DB_VERSION;
 
 /*
@@ -40,8 +73,12 @@ extern const unsigned short int DB_VERSION;
  *
  */
 int db_attach( void );
-int db_upgrade( unsigned short int current_version );
+int db_upgrade( unsigned short int );
+unsigned short int prepare_statements( void );
 short int db_version( void );
+rewrite *init_rewrite( void );
+rewrite *prepare_rewrite( request * );
+void finish_rewrite( rewrite * );
 
 #endif
 

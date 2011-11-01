@@ -35,22 +35,60 @@ void
 process( char *line )
 {
 	request *p_request = parse( line );
+	rewrite *p_rewrite = prepare_rewrite( p_request );
 
 	/* count lines in debugmode */
 	if ( v.debugmode > 2 ) v.timer.lines++;
 
-	/* If parsing failed for some reason, return a blank line to squid. */
-	if ( p_request == NULL ) {
-		printf( "\n" );
+	/* If parsing failed or there wasn't a successful rewrite match,
+	 * return a blank line to squid to allow the request to pass
+	 * through unmolested. */
+	if ( p_request == NULL || p_rewrite == NULL ) {
+		out( "\n" );
+		finish_request( p_request );
+		finish_rewrite( p_rewrite );
 		return;
 	}
 
-	printf( "* %s", line );
-	printf( "%s%s%s%s\n\n", p_request->scheme, p_request->host, p_request->port, p_request->path );
+	if ( v.debugmode < 4 ) {
+		if ( p_rewrite->redir == REDIR_TEMPORARY ) printf( "302:" );
+		if ( p_rewrite->redir == REDIR_PERMANENT ) printf( "301:" );
 
-	/* TODO: everything */
+		if ( p_request->scheme || p_rewrite->scheme )
+			printf( "%s", p_rewrite->scheme ? p_rewrite->scheme : p_request->scheme );
+		printf( "%s", p_rewrite->host   ? p_rewrite->host   : p_request->host );
+		printf( "%s", p_rewrite->path   ? p_rewrite->path   : p_request->path );
+		if ( p_request->port != 0 || p_rewrite->port != 0 )
+			printf( ":%d", p_rewrite->port ? p_rewrite->port : p_request->port );
+		printf("\n");
+	}
+	else {
+		debug( 5, LOC, "Rewrite match on %s/%s\n", p_request->host, p_request->path );
+		debug( 5, LOC, "    --> %s/%s\n", p_rewrite->host, p_rewrite->path );
+	}
 
-	cleanup_request( p_request );
+
+	/* unsigned long hst, net; */
+	/* hst = inet_lnaof( *(p_request->client_ip) ); */
+	/* net = inet_netof( *(p_request->client_ip) ); */
+	/* printf("%14s : net=0x%08lX host=0x%08lX\n", inet_ntoa( *(p_request->client_ip) ), net, hst); */
+	/* printf("%14s : net=%lu host=%lu\n", inet_ntoa( *(p_request->client_ip) ), net, hst); */
+
+	/*
+	 * create function bigint_to_inet(bigint) returns inet as $$
+	 * select
+	 * (($1>>24&255)||'.'||($1>>16&255)||'.'||($1>>8&255)||'.'||($1>>0&255))::inet
+	 * $$ language sql;
+	 * */
+
+	/*
+	char ip[ INET_ADDRSTRLEN ];
+	inet_ntop( AF_INET, p_request->client_ip, ip, INET_ADDRSTRLEN );
+	printf( "%s\n", ip );
+	*/
+
+	finish_request( p_request );
+	finish_rewrite( p_rewrite );
 	return;
 }
 
