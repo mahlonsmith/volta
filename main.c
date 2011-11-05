@@ -41,18 +41,18 @@ int
 main( int argc, char *argv[] )
 {
 #ifdef DEBUG
-	/* debugmode set at compile time,
-	 * default to display everything */
+	/* debugmode set at compile time?  default to crankin' up the level */
 	v.debugmode = 99;
 #else
 	v.debugmode = 0;
 #endif
 
-	(void)signal( SIGINT, shutdown_handler );
-
-	/* default database file name */
-	v.db = NULL;
+	/* defaults and global initalizations */
 	strcpy( v.dbname, "volta.db" );
+	char create_db[30]   = "";
+	v.timer.db_lastcheck = 0;
+	v.timer.start        = time( NULL );
+	v.timer.lines        = 0;
 
 	/* get_opt vars */
 	int opt = 0;
@@ -61,12 +61,12 @@ main( int argc, char *argv[] )
 
 	/* parse options */
 	opterr = 0;
-	while ( (opt = getopt( argc, argv, "d:f:hv" )) != -1 ) {
+	while ( (opt = getopt( argc, argv, "c:d:f:hv" )) != -1 ) {
 		switch ( opt ) {
 
-			/* database filename */
-			case 'f':
-				strncpy( v.dbname, optarg, sizeof(v.dbname) );
+			/* create a new cdb file from ascii input */
+			case 'c':
+				strncpy( create_db, optarg, sizeof(create_db) );
 				break;
 
 			/* debug */
@@ -76,6 +76,11 @@ main( int argc, char *argv[] )
 					v.debugmode = 1;
 				}
 				sscanf( optarg, "%hu", &v.debugmode );
+				break;
+
+			/* database filename */
+			case 'f':
+				strncpy( v.dbname, optarg, sizeof(v.dbname) );
 				break;
 
 			/* help */
@@ -106,16 +111,13 @@ main( int argc, char *argv[] )
 	argc -= optind;
 	argv += optind;
 
-	/* set timer vars for lines/sec counter */
-	if ( v.debugmode > 2 ) {
-		v.timer.start = time( NULL );
-		v.timer.lines = 0;
+	/* create a new database if requested */
+	if ( (int)strlen(create_db) > 0 ) {
+		return( db_create_new( create_db ) );
 	}
 
-	/* get the initial database handle or bomb immediately. */
-	if ( db_attach() != SQLITE_OK ) exit( 1 );
-
 	/* enter stdin parsing loop */
+	(void)signal( SIGINT, shutdown_handler );
 	unsigned char exitval = accept_loop();
 	shutdown_actions();
 	return( exitval );
@@ -129,9 +131,7 @@ main( int argc, char *argv[] )
 void
 shutdown_actions( void )
 {
-	sqlite3_finalize( v.db_stmt.match_request );
-	sqlite3_finalize( v.db_stmt.get_rewrite_rule );
-	sqlite3_close( v.db );
+	close( v.db_fd );
 	report_speed();
 }
 

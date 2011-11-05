@@ -2,8 +2,18 @@
 Building volta
 ===============
 
-Volta should build with minimal effort and without external dependencies, except for
-GNU make. (http://www.gnu.org/software/make/)
+Volta should build with minimal effort.  First, make sure you've got the
+dependencies installed.
+
+
+Dependencies
+------------
+
+ - TinyCDB  (http://www.corpit.ru/mjt/tinycdb.html)
+ - GNU make (http://www.gnu.org/software/make/)
+
+If available, install these dependencies from your OS packaging system
+of choice.
 
 
 Compiling

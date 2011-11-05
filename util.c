@@ -40,6 +40,7 @@ usage( char *prg )
 {
 	printf( "%s [-vh] [-f <filename>] [-d <level>]\n", prg );
 	printf( "    -d <level> Show debug information on stderr\n" );
+	printf( "    -c <filename> Create the volta database from a rules file\n" );
 	printf( "    -f <filename> Specify the database file to use (default is './volta.db')\n");
 	printf( "    -h Usage (you're lookin' at it)\n" );
 	printf( "    -v Display version\n" );
@@ -80,12 +81,12 @@ debug( int level, char *file, int line, const char *fmt, ... )
 
 
 /*
- * Output to stdout for squid, unless the debug level is at or above 4.
+ * Output to stdout for squid, unless the debug level is at or above 5.
  */
 void
 out( const char *str )
 {
-	if ( v.debugmode >= 4 ) return;
+	if ( v.debugmode >= 5 ) return;
 	fprintf( stdout, "%s", str );
 	return;
 }
@@ -108,6 +109,25 @@ reverse_str( char *str )
 
 		i++;
 		j--;
+	}
+
+	return;
+}
+
+
+/*
+ * Lowercase a string in place.
+ *
+ */
+void
+lowercase_str( char *str, unsigned short int len )
+{
+	unsigned short int i = 0;
+	char c;
+
+	for ( ; i < len; i++ ) {
+		c = str[i];
+		str[i] = tolower( c );
 	}
 
 	return;
@@ -142,12 +162,12 @@ extend_line( char *line, const char *buf )
 	if ( new_len > LINE_MAX || (line_realloc = realloc(line, sizeof(char) * new_len)) == NULL ) {
 		debug( 5, LOC, "Ignoring line %d, error while allocating memory: %s\n",
 				v.timer.lines+1, (line_realloc == NULL ? strerror(errno) : "Line too large") );
-		if ( line != NULL ) free( line ), line = NULL;
+		free( line ), line = NULL;
 		printf( "\n" );
 	}
 	else {
 		line = line_realloc;
-		memcpy( line + offset, buf, LINE_BUFSIZE - 1 );
+		memcpy( line + offset, buf, LINE_BUFSIZE );
 	}
 
 	return( line );
@@ -222,6 +242,7 @@ copy_string_token( char *string, unsigned short int length )
  * +ip_string+ into an in_addr struct, returning a pointer to it.
  * 
  */
+/*
 struct in_addr *
 copy_ipv4_token( char *ip_string, unsigned short int length )
 {
@@ -246,7 +267,7 @@ copy_ipv4_token( char *ip_string, unsigned short int length )
 
 	return( alloc_ptr );
 }
-
+*/
 
 /*
  * Report how many lines were processed per second.

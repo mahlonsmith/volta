@@ -41,15 +41,23 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <stdarg.h>
 #include <errno.h>
 #include <string.h>
+#include <strings.h>
 #include <unistd.h>
+#include <ctype.h>
 #include <time.h>
 #include <sys/stat.h>
 #include <signal.h>
-
+#include <fcntl.h>
 #include <sys/types.h>
+#include <regex.h>
+
+/*
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+*/
+
+#include <cdb.h>
 
 #ifdef DEBUG
 #include <google/profiler.h>
@@ -57,16 +65,18 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /* Default line size we accept from squid, longer lines (huge URLs?) malloc. */
 #define LINE_BUFSIZE 2048
-/* Ceiling for how many bytes can be allocated at one for a single line. */
+/* Ceiling for how many bytes can be allocated at once for a single line. */
 #define LINE_MAX 256000 /* 250k */
+/* Maximum DB results for a single query */
+#define DB_RESULTS_MAX 1000
 
-/* Redirect types */
-#define REDIR_TEMPORARY   0
-#define REDIR_PERMANENT   1
-#define REDIR_TRANSPARENT 2
+/* Parsed line types */
+#define REQUEST 1
+#define RULE 2
 
 /* Aid debugging */
 #define LOC __FILE__, __LINE__
+
 
 /*
  * a global struct for easy access to common vars 
@@ -75,62 +85,70 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 struct v_globals {
 	unsigned short int debugmode; /* debug level */
 	char dbname[128];             /* path to database file */
-	struct sqlite3 *db;           /* database handle */
-
-	/* prepared statements */
-	struct {
-		struct sqlite3_stmt *match_request;
-		struct sqlite3_stmt *get_rewrite_rule;
-	} db_stmt;
+	short int db_fd;              /* opened db file descriptor */
 
 	struct {
-		time_t start;            /* start time */
-		unsigned long int lines; /* line count for determining speed */
+		time_t start;             /* start time */
+		unsigned long int lines;  /* line count for determining speed */
+		time_t db_lastcheck;      /* reopen db time */
 	} timer;
 };
 extern struct v_globals v;        /* defined in main.c */
 
+
 /*
- * The parsed attributes from the request line, as given to us by squid.
+ * A line of parsed ascii DB input, for conversion into cdb.
  *
  */
-typedef struct request {
+struct db_input {
+	unsigned int klen;
+	unsigned int vlen;
+	char *key;
+	char *val;
+	char *kstart;
+	char *vstart;
+};
+
+
+/*
+ * The parsed attributes from the request line as given to us by squid,
+ * or from the rule string found in the database.  Unparsed
+ * members are just left NULL.
+ *
+ */
+typedef struct parsed {
+	unsigned short int type;
+	char   *path_re;
+	char   *redir;
 	char   *scheme;
 	char   *host;
 	char   *tld;
 	char   *path;
-	unsigned short int port;
-	struct in_addr *client_ip;
+	char   *port;
+	/* struct in_addr *client_ip; */
+	char   *client_ip;
 	char   *user;
 	char   *method;
 
 	struct {
+		char *path_re_start;
+		char *redir_start;
 		char *scheme_start;
 		char *host_start;
 		char *port_start;
 		char *path_start;
 		char *meth_start;
 		char *c_ip_start;
+		unsigned short int path_re_length;
+		unsigned short int redir_length;
 		unsigned short int scheme_length;
 		unsigned short int host_length;
 		unsigned short int port_length;
-		unsigned short int path_length;
+		unsigned int       path_length;
 		unsigned short int meth_length;
 		unsigned short int c_ip_length;
 	} tokens;
-} request;
-
-/*
- * The URL elements to rewrite a user's request into.
- *
- */
-typedef struct rewrite {
-	char *scheme;
-	char *host;
-	char *path;
-	unsigned short int port;
-	unsigned short int redir;
-} rewrite;
+} parsed;
 
 
 /*
@@ -138,28 +156,32 @@ typedef struct rewrite {
  * Function prototypes
  *
  */
-int getopt( int, char * const [], const char *);
+int  getopt( int, char * const [], const char *);
+void shutdown_handler( int );
+void shutdown_actions( void );
 
 void usage( char * );
 void debug( int, char *, int, const char *, ... );
 void out( const char * );
 void reverse_str( char * );
+void lowercase_str( char *, unsigned short int );
 void report_speed( void );
 char *slurp_file( char * );
 char *extend_line( char *, const char * );
 char *copy_string_token( char *, unsigned short int );
-struct in_addr *copy_ipv4_token( char *, unsigned short int );
+/* struct in_addr *copy_ipv4_token( char *, unsigned short int ); */
 
-void shutdown_handler( int );
-void shutdown_actions( void );
-int accept_loop( void );
+int  accept_loop( void );
 void process( char * );
-request *parse( char * );
-request *init_request( void );
-void populate_request( request * );
-void parse_tld( request * );
-void parse_port( request * );
-void finish_request( request * );
+parsed *init_parsed( void );
+parsed *parse_request( char * );
+parsed *parse_rule( char * );
+void populate_parsed( parsed * );
+void parse_tld( parsed * );
+void finish_parsed( parsed * );
+void reset_results( parsed **, unsigned int );
+parsed *find_matching_rule( parsed **, unsigned int, parsed * );
+void rewrite( parsed *, parsed * );
 
 #endif
 

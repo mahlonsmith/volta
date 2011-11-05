@@ -5,28 +5,22 @@
 
 UNAME       := $(shell uname)
 DEPS_DEBUG   = libprofiler
-CFLAGS       = -O2 -DSQLITE_THREADSAFE=0 -DSQLITE_TEMP_STORE=2
-CFLAGS_DEBUG = -DSQLITE_DEBUG -DDEBUG -DPROG='"volta (debugmode)"' -ggdb -ansi -Wall
-LIBS         = 
+CFLAGS       = -O2
+CFLAGS_DEBUG = -DDEBUG -DPROG='"volta (debugmode)"' -ggdb -ansi -Wall
+LIBS         = -lcdb
 OBJS         = $(patsubst %.c,%.o,$(wildcard *.c))
-
-# not using pkg-config for sqlite3 anymore
-#DEPS        = sqlite3
-#CFLAGS      = -O2 -ansi $(shell pkg-config --cflags-only-I --libs-only-L $(DEPS))
-#LIBS        = $(shell pkg-config --libs-only-l $(DEPS))
 
 .PHONY : parsegraph profile clean clobber release
 
-# Ubuntu: perftools doesn't currently register a .pc file, and
-# sqlite amalgamated requires -ldl
+# Ubuntu: perftools doesn't currently register a .pc file
 ifeq ($(UNAME), Linux)
-volta: LIBS += -ldl
 debug: CFLAGS += $(CFLAGS_DEBUG)
-debug: LIBS = -lprofiler -ldl
+debug: LIBS += -lprofiler
 else
+volta: CFLAGS += -L/opt/local/lib -I/opt/local/include
 debug: CFLAGS += $(CFLAGS_DEBUG)\
 	$(shell pkg-config --cflags-only-I --libs-only-L $(DEPS_DEBUG))
-debug: LIBS = $(shell pkg-config --libs-only-l $(DEPS_DEBUG))
+debug: LIBS += $(shell pkg-config --libs-only-l $(DEPS_DEBUG))
 endif
 
 # Fix parser line number display in debug mode
@@ -66,13 +60,27 @@ debug: $(OBJS)
 ### U T I L
 ########################################################################
 
-parsegraph: squidline_graph.xml squidline_graph.pdf squidline_graph.dot tld_graph.xml tld_graph.pdf tld_graph.dot
-squidline_graph.xml squidline_graph.pdf squidline_graph.dot tld_graph.xml tld_graph.pdf tld_graph.dot: parser.rl
-	ragel -Vp -S squidline_parser parser.rl > squidline_graph.dot
+parsegraph: \
+	request_graph.xml request_graph.pdf request_graph.dot \
+	rule_graph.xml rule_graph.pdf rule_graph.dot \
+	dbinput_graph.xml dbinput_graph.pdf dbinput_graph.dot \
+	tld_graph.xml tld_graph.pdf tld_graph.dot
+
+request_graph.xml request_graph.pdf request_graph.dot \
+rule_graph.xml rule_graph.pdf rule_graph.dot \
+dbinput_graph.xml dbinput_graph.pdf dbinput_graph.dot \
+tld_graph.xml tld_graph.pdf tld_graph.dot: parser.rl
+	ragel -Vp -S request_parser parser.rl > request_graph.dot
+	ragel -Vp -S rule_parser parser.rl > rule_graph.dot
+	ragel -Vp -S dbinput_parser parser.rl > dbinput_graph.dot
 	ragel -Vp -S tld_parser parser.rl > tld_graph.dot
-	ragel $(RAGEL_FLAGS) -S squidline_parser -x parser.rl -o squidline_graph.xml
+	ragel $(RAGEL_FLAGS) -S request_parser -x parser.rl -o request_graph.xml
+	ragel $(RAGEL_FLAGS) -S rule_parser -x parser.rl -o rule_graph.xml
+	ragel $(RAGEL_FLAGS) -S dbinput_parser -x parser.rl -o dbinput_graph.xml
 	ragel $(RAGEL_FLAGS) -S tld_parser -x parser.rl -o tld_graph.xml
-	dot -Tpdf squidline_graph.dot > squidline_graph.pdf
+	dot -Tpdf request_graph.dot > request_graph.pdf
+	dot -Tpdf rule_graph.dot > rule_graph.pdf
+	dot -Tpdf dbinput_graph.dot > dbinput_graph.pdf
 	dot -Tpdf tld_graph.dot > tld_graph.pdf
 
 # export CPUPROFILE="cpu.prof" before running volta for cpu profiling
@@ -85,7 +93,7 @@ tags:
 	ctags *.h *.c
 
 clobber: clean
-	rm -f parser.c volta.db ChangeLog tags
+	rm -f parser.c volta.cdb ChangeLog tags
 
 clean:
 	-rm -f volta *_graph.* *.o *.prof*

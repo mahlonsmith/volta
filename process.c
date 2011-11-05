@@ -31,64 +31,158 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "volta.h"
 #include "db.h"
 
+
+/*
+ * Given a redirect +line+ from squid, send it to the parser,
+ * perform database lookups, and conditonally perform the rewrite.
+ *
+ */
 void
 process( char *line )
 {
-	request *p_request = parse( line );
-	rewrite *p_rewrite = prepare_rewrite( p_request );
+	parsed *p_request = parse_request( line ), *rule = NULL;
+	parsed *results[ DB_RESULTS_MAX ] = { NULL }; /* array of response matches */
+	unsigned int rcount = 0;
 
 	/* count lines in debugmode */
 	if ( v.debugmode > 2 ) v.timer.lines++;
 
-	/* If parsing failed or there wasn't a successful rewrite match,
-	 * return a blank line to squid to allow the request to pass
-	 * through unmolested. */
-	if ( p_request == NULL || p_rewrite == NULL ) {
+	/* If request parsing failed, return a blank line to squid
+	   to allow the request to pass through unmolested. */
+	if ( p_request == NULL ) {
 		out( "\n" );
-		finish_request( p_request );
-		finish_rewrite( p_rewrite );
+		finish_parsed( p_request );
 		return;
 	}
 
-	if ( v.debugmode < 4 ) {
-		if ( p_rewrite->redir == REDIR_TEMPORARY ) printf( "302:" );
-		if ( p_rewrite->redir == REDIR_PERMANENT ) printf( "301:" );
+	/*
+	 * Main rewrite logic.
+	 *
+	 * First, try and match the host exactly.
+	 *
+	 * Second, match the TLD of the host, so separate rules aren't needed for
+	 * every possible subdomain of one particular domain.
+	 *
+	 * Finally, look for '*', if for some reason the rules provided don't care to
+	 * match specific hosts, and instead just match on any path.
+	 *
+	 * If DB matches are found at any step above, the rules are tried in order
+	 * to attempt a match against the path.  Exact string match attempted
+	 * first, then fallback to regexp.
+	 * 
+	 * First rule match wins, and elements of the URL are rewritten based on
+	 * what is present in the rule -- any missing parts just use the original
+	 * URL element.  (this way, you can rewrite just the host and leave the
+	 * path intact, or redir to https, for example.)
+	 *
+	 */
+	rcount = find_records( p_request->host, results );
+	rule = find_matching_rule( results, rcount, p_request );
 
-		if ( p_request->scheme || p_rewrite->scheme )
-			printf( "%s", p_rewrite->scheme ? p_rewrite->scheme : p_request->scheme );
-		printf( "%s", p_rewrite->host   ? p_rewrite->host   : p_request->host );
-		printf( "%s", p_rewrite->path   ? p_rewrite->path   : p_request->path );
-		if ( p_request->port != 0 || p_rewrite->port != 0 )
-			printf( ":%d", p_rewrite->port ? p_rewrite->port : p_request->port );
-		printf("\n");
+	if ( rule == NULL ) {
+		reset_results( results, rcount );
+		rcount = find_records( p_request->tld, results );
+		rule = find_matching_rule( results, rcount, p_request );
 	}
+
+	if ( rule == NULL ) {
+		reset_results( results, rcount );
+		rcount = find_records( "*", results );
+		rule = find_matching_rule( results, rcount, p_request );
+	}
+
+	/* no matching rule still?  no need to rewrite anything. */
+	if ( rule == NULL ) {
+		out( "\n" );
+	}
+	/* otherwise, perform the rewrite */
 	else {
-		debug( 5, LOC, "Rewrite match on %s/%s\n", p_request->host, p_request->path );
-		debug( 5, LOC, "    --> %s/%s\n", p_rewrite->host, p_rewrite->path );
+		rewrite( p_request, rule );
 	}
 
+	reset_results( results, rcount );
+	finish_parsed( p_request );
+	return;
+}
 
-	/* unsigned long hst, net; */
-	/* hst = inet_lnaof( *(p_request->client_ip) ); */
-	/* net = inet_netof( *(p_request->client_ip) ); */
-	/* printf("%14s : net=0x%08lX host=0x%08lX\n", inet_ntoa( *(p_request->client_ip) ), net, hst); */
-	/* printf("%14s : net=%lu host=%lu\n", inet_ntoa( *(p_request->client_ip) ), net, hst); */
 
-	/*
-	 * create function bigint_to_inet(bigint) returns inet as $$
-	 * select
-	 * (($1>>24&255)||'.'||($1>>16&255)||'.'||($1>>8&255)||'.'||($1>>0&255))::inet
-	 * $$ language sql;
-	 * */
+/*
+ * Output a rewritten URL for squid.
+ *
+ */
+void
+rewrite( parsed *request, parsed *rule )
+{
+	if ( rule == NULL || v.debugmode >= 5 ) return;
 
-	/*
-	char ip[ INET_ADDRSTRLEN ];
-	inet_ntop( AF_INET, p_request->client_ip, ip, INET_ADDRSTRLEN );
-	printf( "%s\n", ip );
-	*/
+	if ( rule->redir ) printf( "%s:", rule->redir );
+	printf( "%s%s", (rule->scheme ? rule->scheme : request->scheme), rule->host );
+	if ( rule->port ) printf( ":%s", rule->port );
+	printf( "%s", rule->path ? rule->path : request->path );
 
-	finish_request( p_request );
-	finish_rewrite( p_rewrite );
+	printf("\n");
+	return;
+}
+
+
+/*
+ * Search through a result set, and return the first
+ * matching path (or NULL).
+ *
+ */
+parsed *
+find_matching_rule( parsed **results, unsigned int resultcount, parsed *p_request )
+{
+	unsigned int i = 0;
+	int re_rv;
+	regex_t re;
+	char re_err[128];
+	parsed *rule = NULL;
+
+	if ( resultcount == 0 || p_request->path == NULL ) return( NULL );
+
+	for ( i = 0; i < resultcount; i++ ) {
+		/* quick comparison */
+		if ( (strcasecmp( results[i]->path_re, p_request->path ) == 0) ||
+			 (strcmp( results[i]->path_re, "*" ) == 0) ) {
+			debug( 4, LOC, "Rule %d match (non regexp)\n", i+1 );
+			rule = results[i];
+			break;
+		}
+
+		/* compile the regexp */
+		if ( (re_rv = regcomp( &re, results[i]->path_re, REG_EXTENDED | REG_NOSUB )) != 0 ) {
+			regerror( re_rv, &re, re_err, 128 );
+			debug( 4, LOC, "Invalid regex: \"%s\": %s\n", results[i]->path_re, re_err );
+			regfree( &re );
+			continue;
+		}
+
+		/* compare! */
+		if ( (regexec( &re, p_request->path, 0, NULL, 0 )) == 0 ) {
+			debug( 4, LOC, "Rule %d match (regexp)\n", i+1 );
+			rule = results[i];
+			regfree( &re );
+			break;
+		}
+	}
+
+	return( rule );
+}
+
+
+/*
+ * Clear the results array and free memory.
+ *
+ */
+void
+reset_results( parsed **results, unsigned int count )
+{
+	unsigned int i = 0;
+
+	for ( ; i < count && i < DB_RESULTS_MAX; i++ ) finish_parsed( results[i] );
+	memset( results, 0, sizeof(results) );
+
 	return;
 }
 

@@ -31,259 +31,195 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "volta.h"
 #include "db.h"
 
-const unsigned short int DB_VERSION = 1;
-
 
 /*
- * Connect to the database specified in the 'v' global struct,
- * and populate v.db with a handle to it.
- *
- * If required, automatically handle initializing/upgrading a DB.
- *
- */
-int
-db_attach( void )
-{
-	if ( v.db != NULL )          return( SQLITE_OK );    /* already attached */
-	if ( strlen(v.dbname) == 0 ) return( SQLITE_ERROR ); /* db filename not set? */
-
-	debug( 2, LOC, "Attaching to database '%s'\n", v.dbname );
-	if ( sqlite3_open( v.dbname, &v.db ) != SQLITE_OK ) {
-		debug( 1, LOC, "Error when attaching to database: %s\n", sqlite3_errmsg(v.db) );
-		return( sqlite3_errcode(v.db) );
-	}
-
-	/* check DB version */
-	unsigned short int version = db_version();
-	debug( 2, LOC, "Database version: %d\n", version );
-	if ( version != DB_VERSION ) {
-		debug( 2, LOC, "Database version mismatch: expected %hu\n", DB_VERSION );
-
-		/* We're in need of a DB initialization, or just behind.
-		 * Attempt to "stair step" upgrade to the current version. */
-		if ( version < DB_VERSION ) {
-			return( db_upgrade(version) );
-		}
-
-		/* Something else is wack. */
-		else {
-			return( SQLITE_ERROR );
-		}
-	}
-
-	/* initialize prepared statements */
-	if ( prepare_statements() != 0 ) return SQLITE_ERROR;
-
-	return( SQLITE_OK );
-}
-
-
-/*
- * Perform automatic stair-step upgrades of DB versions
- * to get up to the current version expected from code.
- *
- */
-int
-db_upgrade( unsigned short int current_version )
-{
-	unsigned short int i = 0;
-	char user_pragma[30];
-	char sql_file[30];
-	char *upgrade_sql = NULL;
-
-	for ( i = current_version + 1; i <= DB_VERSION; i++ ) {
-		if ( i == 1 ) {
-			debug( 2, LOC, "Initializing new database.\n" );
-		}
-		else {
-			debug( 2, LOC, "Upgrading database version from %hu to %hu\n", current_version, i );
-		}
-
-		sprintf( sql_file, "sql/%d.sql", i );
-		upgrade_sql = slurp_file( sql_file );
-		if ( upgrade_sql == NULL ) return( SQLITE_ERROR );
-
-		/* If there is SQL to execute, do so and then reset for more */
-		if ( sqlite3_exec( v.db, upgrade_sql, NULL, NULL, NULL ) != SQLITE_OK ) {
-			debug( 2, LOC, "Error %s database: %s\n",
-					(i == 1 ? "initalizing" : "upgrading"), sqlite3_errmsg(v.db) );
-			return( sqlite3_errcode(v.db) );
-		}
-		free( upgrade_sql ), upgrade_sql = NULL;
-
-		/* update version metadata in DB if update was successful */
-		current_version = i;
-		sprintf( user_pragma, "PRAGMA user_version = %hu;", current_version );
-		if ( sqlite3_exec( v.db, user_pragma, NULL, NULL, NULL ) != SQLITE_OK ) {
-			debug( 2, LOC, "Error setting version: %s\n", sqlite3_errmsg(v.db) );
-			return( sqlite3_errcode(v.db) );
-		}
-	}
-
-	return( SQLITE_OK );
-}
-
-
-/*
- * Fetch and return the database's current version. or -1 on error.
- * The database should already be attached before calling this function.
+ * Open the database specified in the 'v' global struct,
+ * setting the file descriptor.  Returns 0 on success.
  *
  */
 short int
-db_version( void )
+db_attach( void )
 {
-	struct sqlite3_stmt *stmt;
-	int version = -1;
+	/* only re-open the db at most every 10 seconds */
+	time_t now = time( NULL );
+	if ( v.timer.db_lastcheck > 0 ) {
+		if ( now - v.timer.db_lastcheck >= 10 ) {
+			close( v.db_fd );
+		}
+		else {
+			return( 0 );
+		}
+	}
 
-	if ( sqlite3_prepare_v2( v.db, "PRAGMA user_version", -1, &stmt, NULL ) != SQLITE_OK ) {
-		debug( 2, LOC, "Error finding DB version: %s\n", sqlite3_errmsg(v.db) );
+	debug( 2, LOC, "(Re)attaching to database '%s'\n", v.dbname );
+
+	/* db filename not set? */
+	if ( strlen(v.dbname) == 0 ) {
+		debug( 1, LOC, "Error when attaching to database: DB filename unset?\n" );
 		return( -1 );
 	}
 
-	if ( sqlite3_step( stmt ) == SQLITE_ROW )
-		version = sqlite3_column_int( stmt, 0 );
+	if ( (v.db_fd = open( v.dbname, O_RDONLY )) == -1 ) {
+		debug( 1, LOC, "Error when attaching to database: %s\n", strerror(errno) );
+		return( -1 );
+	}
 
-	sqlite3_finalize( stmt );
-	return( version );
+	v.timer.db_lastcheck = now;
+	return( 0 );
 }
 
 
 /*
- * Initialize the DB statements, returning 0 on success.
+ * Given a rule file in ascii specified by the -c command line arg,
+ * convert it to a cdb after checking rules for validity.
  *
  */
 unsigned short int
-prepare_statements( void )
+db_create_new( char *txt )
 {
-	unsigned short int rv = 0;
+	struct cdb_make cdbm;
 
-	rv = rv + sqlite3_prepare_v2( v.db, DBSQL_GET_REWRITE_RULE, -1, &v.db_stmt.get_rewrite_rule, NULL );
-	if ( rv != 0 )
-		debug( 2, LOC, "Error preparing DB statement \"%s\": %s\n",
-				DBSQL_GET_REWRITE_RULE, sqlite3_errmsg(v.db) );
+	char buf[ LINE_BUFSIZE*10 ];
+	char tmpfile[25];
+	int  tmp_fd;
+	FILE *txt_f = NULL;
+	int  linenum = 0, parsed = 0;
+	struct db_input *dbline;
 
-	rv = rv + sqlite3_prepare_v2( v.db, DBSQL_MATCH_REQUEST, -1, &v.db_stmt.match_request, NULL );
-	if ( rv != 0 )
-		debug( 2, LOC, "Error preparing DB statement \"%s\": %s\n",
-				DBSQL_MATCH_REQUEST, sqlite3_errmsg(v.db) );
-
-	return( rv );
-}
-
-
-/*
- * Initialize and return a pointer to a new rewrite object.
- *
- */
-rewrite *
-init_rewrite( void )
-{
-	rewrite *p_rewrite = NULL;
-	if ( (p_rewrite = malloc( sizeof(rewrite) )) == NULL ) {
-		debug( 5, LOC, "Unable to allocate memory for rewrite struct: %s\n", strerror(errno) );
-		return( NULL );
+	/* open temporary file */
+	debug( 0, LOC, "Creating/updating database (%s) using rules in \"%s\"\n", v.dbname, txt );
+	sprintf( tmpfile, "/tmp/volta-db-%d.tmp", getpid() );
+	if ( (tmp_fd = open( tmpfile,
+						 O_RDWR|O_CREAT, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH )) == -1 ) {
+		debug( 0, LOC, "Error writing temporary file: %s\n", strerror(errno) );
+		return( 1 );
 	}
 
-	p_rewrite->scheme  = NULL;
-	p_rewrite->host    = NULL;
-	p_rewrite->path    = NULL;
-	p_rewrite->port    = 0;
-	p_rewrite->redir   = 0;
+	/* open rules file */
+	if ( (txt_f = fopen( txt, "r" )) == NULL ) {
+		debug( 0, LOC, "Error reading rules file: %s\n", strerror(errno) );
+		return( 1 );
+	}
 
-	return( p_rewrite );
+	/* init struct and start parsing lines */
+	cdb_make_start( &cdbm, tmp_fd );
+	while ( fgets( buf, LINE_BUFSIZE*10, txt_f ) != NULL ) {
+		linenum++;
+
+		/* skip blank lines and comments */
+		if ( strlen(buf) == 1 || buf[0] == '#' ) continue;
+
+		/* validate and add! */
+		dbline = parse_dbinput( buf );
+		if ( dbline == NULL ) {
+			debug( 0, LOC, "Invalid rule (line %d), skipping: %s", linenum, buf );
+			continue;
+		}
+
+		cdb_make_add( &cdbm, dbline->key, dbline->klen, dbline->val, dbline->vlen );
+		parsed++;
+
+		free( dbline->key );
+		free( dbline->val );
+		free( dbline );
+	}
+
+	/* write indexes */
+	fclose( txt_f );
+	cdb_make_finish( &cdbm );
+	close( tmp_fd );
+
+	/* move cdb into place */
+	if ( (rename( tmpfile, v.dbname )) == -1 ) {
+		debug( 1, LOC, "Unable to move temp cdb into place: %s", strerror(errno) );
+		return( 1 );
+	}
+
+	debug( 0, LOC, "Added %d rules to %s.\n", parsed, v.dbname );
+	return( 0 );
 }
 
 
-#define COPY_REWRITE_ROW( INDEX ) copy_string_token( \
-			(char *)sqlite3_column_text( v.db_stmt.get_rewrite_rule, INDEX ),\
-			sqlite3_column_bytes( v.db_stmt.get_rewrite_rule, INDEX ))
-/*
- * Given a request struct pointer, try and find the best matching
- * rewrite rule, returning a pointer to a rewrite struct.
+/* Fast single record lookup.
+ * Returns a pointer to the found value or NULL if there is no match.
+ *
+ * The returned pointer should be freed after use.
  *
  */
-rewrite *
-prepare_rewrite( request *p_request )
+char *
+find_record( char *key )
 {
-	if ( p_request == NULL ) return( NULL );
+	if ( key == NULL ) return( NULL );
 
-	unsigned short int rewrite_id = 0;
-	rewrite *p_rewrite = init_rewrite();
+	char *val = NULL;
+	cdbi_t vlen;
 
-	sqlite3_bind_text( v.db_stmt.match_request, 3, p_request->tld,       -1, SQLITE_STATIC );
-	sqlite3_bind_text( v.db_stmt.match_request, 1, p_request->scheme,    -1, SQLITE_STATIC );
-	sqlite3_bind_text( v.db_stmt.match_request, 2, p_request->host,      -1, SQLITE_STATIC );
-	sqlite3_bind_text( v.db_stmt.match_request, 3, p_request->tld,       -1, SQLITE_STATIC );
-	sqlite3_bind_text( v.db_stmt.match_request, 4, p_request->path,      -1, SQLITE_STATIC );
-	sqlite3_bind_int(  v.db_stmt.match_request, 5, p_request->port );
-	/*
-	sqlite3_bind_text( v.db_stmt.match_request, 6, NULL, -1, SQLITE_STATIC );
-	sqlite3_bind_text( v.db_stmt.match_request, 6, p_request->client_ip, -1, SQLITE_STATIC );
-	*/
-	sqlite3_bind_text( v.db_stmt.match_request, 7, p_request->user,      -1, SQLITE_STATIC );
-	sqlite3_bind_text( v.db_stmt.match_request, 8, p_request->method,    -1, SQLITE_STATIC );
+	if ( cdb_seek( v.db_fd, key, (int)strlen(key), &vlen) > 0 ) {
 
-	switch ( sqlite3_step( v.db_stmt.match_request )) {
-		case SQLITE_ROW:
-			rewrite_id = sqlite3_column_int( v.db_stmt.match_request, 0 );
-			break;
-
-		case SQLITE_DONE:
-			break;
-
-		default:
+		if ( (val = malloc( vlen + 1 )) == NULL ) {
+			debug( 5, LOC, "Unable to allocate memory for value storage: %s\n", strerror(errno) );
 			return( NULL );
+		}
+
+		cdb_bread( v.db_fd, val, vlen );
+		val[vlen] = '\0';
+		debug( 4, LOC, "Match for key '%s': %s\n", key, val );
 	}
 
-	/* FIXME: CHECK for rewrite_rule being NULL on successful match, emit warning, continue */
-
-	/* return early if we didn't get a matching request */
-	if ( rewrite_id == 0 ) return( NULL );
-
-	/* pull the rewrite data, populate the struct.  only one
-	 * row should ever be returned for this. */
-	sqlite3_bind_int( v.db_stmt.get_rewrite_rule, 1, rewrite_id );
-	switch ( sqlite3_step( v.db_stmt.get_rewrite_rule )) {
-		case SQLITE_ROW:
-			p_rewrite->scheme = COPY_REWRITE_ROW( 1 );
-			p_rewrite->host   = COPY_REWRITE_ROW( 2 );
-			p_rewrite->path   = COPY_REWRITE_ROW( 3 );
-			p_rewrite->port   = sqlite3_column_int( v.db_stmt.get_rewrite_rule, 4 );
-			p_rewrite->redir  = sqlite3_column_int( v.db_stmt.get_rewrite_rule, 5 );
-			break;
-
-		case SQLITE_DONE:
-			break;
-
-		default:
-			return( NULL );
-	}
-
-	return( p_rewrite );
+	return val;
 }
 
 
-/*
- * Release memory used by the rewrite struct and
- * reset prepared statements.
+/* 
+ * Search the CDB for all occurences of the given +key+,
+ * populating the +results+ array with pointers to parsed rule structs.
+ *
+ * Returns the number of successful matches.  reset_results()
+ * should be called after the result set is examined.
  *
  */
-void
-finish_rewrite( rewrite *p_rewrite )
+unsigned int
+find_records( char *key, parsed **results )
 {
-	sqlite3_reset( v.db_stmt.get_rewrite_rule );
-	sqlite3_reset( v.db_stmt.match_request );
-	sqlite3_clear_bindings( v.db_stmt.get_rewrite_rule );
-	sqlite3_clear_bindings( v.db_stmt.match_request );
+	if ( key == NULL ) return( 0 );
 
-	if ( p_rewrite == NULL ) return;
+	struct cdb cdb;
+	struct cdb_find cdbf; /* structure to hold current find position */
 
-	free( p_rewrite->scheme );
-	free( p_rewrite->host );
-	free( p_rewrite->path );
+	unsigned int match = 0;
+	parsed *result     = NULL;
+	char *val          = NULL;
+	unsigned int vlen, vpos;
 
-	free( p_rewrite ), p_rewrite = NULL;
+	/* initialize search structs */
+	if ( db_attach() == -1 ) return( 0 );
+	cdb_init( &cdb, v.db_fd );
+	cdb_findinit( &cdbf, &cdb, key, (int)strlen(key) );
 
-	return;
+	while ( cdb_findnext( &cdbf ) > 0 && match < DB_RESULTS_MAX ) {
+		vpos = cdb_datapos( &cdb );
+		vlen = cdb_datalen( &cdb );
+
+		/* pull the value from the db */
+		if ( (val = calloc( vlen, sizeof(char) )) == NULL ) {
+			debug( 5, LOC, "Unable to allocate memory for DB value storage: %s\n",
+					strerror(errno) );
+			return( 0 );
+		}
+		cdb_read( &cdb, val, vlen, vpos );
+
+		/* if it parses properly, add it to the result set. */
+		result = parse_rule( val );
+		if ( result != NULL ) {
+			results[match] = result;
+			debug( 4, LOC, "DB match %d for key '%s': %s\n", match+1, key, val );
+		}
+
+		match++;
+		free( val );
+	}
+
+	cdb_free( &cdb );
+	return match;
 }
 
