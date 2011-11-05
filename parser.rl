@@ -199,10 +199,11 @@ parse_rule( char *rewrite )
 %%{
 	machine rule_parser;
 
-	action match_start    { MARK_S(path_re) }
-	action match_finish   { MARK_E(path_re) }
-	action redir_start    { MARK_S(redir) }
-	action redir_finish   { p_parsed->tokens.redir_length = 3; } # strip trailing colon
+	action match_start   { MARK_S(path_re) }
+	action match_finish  { MARK_E(path_re) }
+	action redir_start   { MARK_S(redir) }
+	action redir_finish  { p_parsed->tokens.redir_length = 3; } # strip trailing colon
+	action wl_finish     { p_parsed->wl = 1; }
 
 	action scheme_start  { MARK_S(scheme) }
 	action scheme_finish { MARK_E(scheme) }
@@ -219,20 +220,23 @@ parse_rule( char *rewrite )
 	host_component  = alnum | ( alnum [a-zA-Z0-9\-_]* alnum );
 	path_segment    = '/' ( any - space )*;
 
-	sep            = space+;
-	hostname       = host_component ( '.' host_component )* '.'?;
-	ipv4           = digit{1,3} '.' digit{1,3} '.' digit{1,3} '.' digit{1,3};
-	ipv6           = ( xdigit | ':' )+;
+	sep       = space+;
+	hostname  = host_component ( '.' host_component )* '.'?;
+	ipv4      = digit{1,3} '.' digit{1,3} '.' digit{1,3} '.' digit{1,3};
+	ipv6      = ( xdigit | ':' )+;
 
-	path_re        = ( any - space )+      >match_start  %match_finish @!match_error;
-	redir          = ( digit{3} ':' )      >redir_start  %redir_finish;
+	whitelist = ( '-' sep )          %wl_finish;
+	path_re   = ( any - space )+     >match_start  %match_finish @!match_error;
 
-	scheme         = ( alpha{3,5} '://' )  >scheme_start %scheme_finish;
-	host           = ( hostname | ipv4 )   >host_start   %host_finish   @!host_error;
-	port           = ( ':' digit{1,5} )    >port_start   %port_finish;
-	path           = path_segment*         >path_start   %path_finish;
+	redir     = ( digit{3} ':' )     >redir_start  %redir_finish;
+	scheme    = ( alpha{3,5} '://' ) >scheme_start %scheme_finish;
+	host      = ( hostname | ipv4 )  >host_start   %host_finish   @!host_error;
+	port      = ( ':' digit{1,5} )   >port_start   %port_finish;
+	path      = path_segment*        >path_start   %path_finish;
 
-	main := path_re sep ( redir? scheme? host port? path? );
+	rewrite   = ( sep redir? scheme? host port? path? );
+
+	main := whitelist? path_re rewrite?;
 }%%
 
 	/* state machine */
@@ -297,8 +301,9 @@ parse_dbinput( char *line )
 	redir          = ( digit{3} ':' );
 	host           = ( hostname | ipv4 );
 
-	key = ( host | '*' )      >key_start %key_finish @!key_error;
-	val = ( token sep token ) >val_start %val_finish @!val_error;
+	key = ( host | '*' )                      >key_start %key_finish @!key_error;
+	val = ( (token sep)? token (sep token)? ) >val_start %val_finish @!val_error;
+	#           wl       regex   rewrite
 	
 	main:= key sep val '\n';
 }%%
@@ -346,6 +351,7 @@ init_parsed( void )
 	}
 
 	p_parsed->type      = 0;
+	p_parsed->wl        = 0;
 	p_parsed->path_re   = NULL;
 	p_parsed->redir     = NULL;
 	p_parsed->scheme    = NULL;
@@ -450,9 +456,9 @@ void
 parse_tld( parsed *p_request )
 {
 	unsigned short int cs = 5, mark = 0;
-	char *p   = p_request->host;
-	char *pe  = p + p_request->tokens.host_length;
-	char *ts  = 0, *te = 0, *eof = pe;
+	char *p  = p_request->host;
+	char *pe = p + p_request->tokens.host_length;
+	char *ts = 0, *te = 0, *eof = pe;
 
 %%{
     machine tld_parser;

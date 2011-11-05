@@ -38,8 +38,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 short int db_attach( void );
 unsigned short int db_create_new( char * );
 struct db_input *parse_dbinput( char * );
-char *find_record( char * );
-unsigned int find_records( char *, parsed ** );
+parsed *find_rule( char *, parsed * );
 
 #endif
 

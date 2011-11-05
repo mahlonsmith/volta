@@ -41,8 +41,6 @@ void
 process( char *line )
 {
 	parsed *p_request = parse_request( line ), *rule = NULL;
-	parsed *results[ DB_RESULTS_MAX ] = { NULL }; /* array of response matches */
-	unsigned int rcount = 0;
 
 	/* count lines in debugmode */
 	if ( v.debugmode > 2 ) v.timer.lines++;
@@ -76,31 +74,20 @@ process( char *line )
 	 * path intact, or redir to https, for example.)
 	 *
 	 */
-	rcount = find_records( p_request->host, results );
-	rule = find_matching_rule( results, rcount, p_request );
+	rule = find_rule( p_request->host, p_request );
+	if ( rule == NULL ) rule = find_rule( p_request->tld, p_request );
+	if ( rule == NULL ) rule = find_rule( "*", p_request );
 
-	if ( rule == NULL ) {
-		reset_results( results, rcount );
-		rcount = find_records( p_request->tld, results );
-		rule = find_matching_rule( results, rcount, p_request );
-	}
-
-	if ( rule == NULL ) {
-		reset_results( results, rcount );
-		rcount = find_records( "*", results );
-		rule = find_matching_rule( results, rcount, p_request );
-	}
-
-	/* no matching rule still?  no need to rewrite anything. */
-	if ( rule == NULL ) {
+	/* no matching rule still or whitelist rule?  no need to rewrite anything. */
+	if ( rule == NULL || rule->wl ) {
 		out( "\n" );
 	}
-	/* otherwise, perform the rewrite */
+	/* otherwise, perform the rewrite. */
 	else {
 		rewrite( p_request, rule );
 	}
 
-	reset_results( results, rcount );
+	finish_parsed( rule );
 	finish_parsed( p_request );
 	return;
 }
@@ -126,63 +113,43 @@ rewrite( parsed *request, parsed *rule )
 
 
 /*
- * Search through a result set, and return the first
- * matching path (or NULL).
+ * Compare a parsed +rule+ against the +request+.
+ * Returns 1 on a match, 0 otherwise.
  *
  */
-parsed *
-find_matching_rule( parsed **results, unsigned int resultcount, parsed *p_request )
+unsigned short int
+check_rule( parsed *rule, parsed *p_request )
 {
-	unsigned int i = 0;
 	int re_rv;
 	regex_t re;
 	char re_err[128];
-	parsed *rule = NULL;
 
-	if ( resultcount == 0 || p_request->path == NULL ) return( NULL );
+	if ( rule == NULL || p_request->path == NULL ) return( 0 );
 
-	for ( i = 0; i < resultcount; i++ ) {
-		/* quick comparison */
-		if ( (strcasecmp( results[i]->path_re, p_request->path ) == 0) ||
-			 (strcmp( results[i]->path_re, "*" ) == 0) ) {
-			debug( 4, LOC, "Rule %d match (non regexp)\n", i+1 );
-			rule = results[i];
-			break;
-		}
-
-		/* compile the regexp */
-		if ( (re_rv = regcomp( &re, results[i]->path_re, REG_EXTENDED | REG_NOSUB )) != 0 ) {
-			regerror( re_rv, &re, re_err, 128 );
-			debug( 4, LOC, "Invalid regex: \"%s\": %s\n", results[i]->path_re, re_err );
-			regfree( &re );
-			continue;
-		}
-
-		/* compare! */
-		if ( (regexec( &re, p_request->path, 0, NULL, 0 )) == 0 ) {
-			debug( 4, LOC, "Rule %d match (regexp)\n", i+1 );
-			rule = results[i];
-			regfree( &re );
-			break;
-		}
+	/* quick comparison */
+	if ( (strcasecmp( rule->path_re, p_request->path ) == 0) ||
+			(strcmp( rule->path_re, "*" ) == 0) ) {
+		debug( 4, LOC, "Rule match \"%s\" (non regexp)\n", rule->path_re );
+		return( 1 );
 	}
 
-	return( rule );
-}
+	/* compile the regexp */
+	if ( (re_rv = regcomp( &re, rule->path_re, REG_EXTENDED | REG_NOSUB )) != 0 ) {
+		regerror( re_rv, &re, re_err, 128 );
+		debug( 4, LOC, "Invalid regex: \"%s\": %s\n", rule->path_re, re_err );
+		regfree( &re );
+		return( 0 );
+	}
 
-
-/*
- * Clear the results array and free memory.
- *
- */
-void
-reset_results( parsed **results, unsigned int count )
-{
-	unsigned int i = 0;
-
-	for ( ; i < count && i < DB_RESULTS_MAX; i++ ) finish_parsed( results[i] );
-	memset( results, 0, sizeof(results) );
-
-	return;
+	/* compare! */
+	if ( (regexec( &re, p_request->path, 0, NULL, 0 )) == 0 ) {
+		debug( 4, LOC, "Rule match \"%s\" (regexp)\n", rule->path_re );
+		regfree( &re );
+		return( 1 );
+	}
+	else {
+		regfree( &re );
+		return( 0 );
+	}
 }
 

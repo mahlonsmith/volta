@@ -67,8 +67,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define LINE_BUFSIZE 2048
 /* Ceiling for how many bytes can be allocated at once for a single line. */
 #define LINE_MAX 256000 /* 250k */
-/* Maximum DB results for a single query */
-#define DB_RESULTS_MAX 1000
 
 /* Parsed line types */
 #define REQUEST 1
@@ -118,6 +116,7 @@ struct db_input {
  */
 typedef struct parsed {
 	unsigned short int type;
+	unsigned short int wl;
 	char   *path_re;
 	char   *redir;
 	char   *scheme;
@@ -180,7 +179,7 @@ void populate_parsed( parsed * );
 void parse_tld( parsed * );
 void finish_parsed( parsed * );
 void reset_results( parsed **, unsigned int );
-parsed *find_matching_rule( parsed **, unsigned int, parsed * );
+unsigned short int check_rule( parsed *, parsed * );
 void rewrite( parsed *, parsed * );
 
 #endif

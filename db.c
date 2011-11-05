@@ -140,63 +140,30 @@ db_create_new( char *txt )
 }
 
 
-/* Fast single record lookup.
- * Returns a pointer to the found value or NULL if there is no match.
- *
- * The returned pointer should be freed after use.
+/* 
+ * Search the CDB for all occurances of the given +key+, checking
+ * each one against the +p_request+.  First match wins and is
+ * returned.  NULL on no match.
  *
  */
-char *
-find_record( char *key )
+parsed *
+find_rule( char *key, parsed *p_request )
 {
 	if ( key == NULL ) return( NULL );
-
-	char *val = NULL;
-	cdbi_t vlen;
-
-	if ( cdb_seek( v.db_fd, key, (int)strlen(key), &vlen) > 0 ) {
-
-		if ( (val = malloc( vlen + 1 )) == NULL ) {
-			debug( 5, LOC, "Unable to allocate memory for value storage: %s\n", strerror(errno) );
-			return( NULL );
-		}
-
-		cdb_bread( v.db_fd, val, vlen );
-		val[vlen] = '\0';
-		debug( 4, LOC, "Match for key '%s': %s\n", key, val );
-	}
-
-	return val;
-}
-
-
-/* 
- * Search the CDB for all occurences of the given +key+,
- * populating the +results+ array with pointers to parsed rule structs.
- *
- * Returns the number of successful matches.  reset_results()
- * should be called after the result set is examined.
- *
- */
-unsigned int
-find_records( char *key, parsed **results )
-{
-	if ( key == NULL ) return( 0 );
 
 	struct cdb cdb;
 	struct cdb_find cdbf; /* structure to hold current find position */
 
-	unsigned int match = 0;
-	parsed *result     = NULL;
-	char *val          = NULL;
+	parsed *rule = NULL;
+	char *val    = NULL;
 	unsigned int vlen, vpos;
 
 	/* initialize search structs */
-	if ( db_attach() == -1 ) return( 0 );
+	if ( db_attach() == -1 ) return( NULL );
 	cdb_init( &cdb, v.db_fd );
 	cdb_findinit( &cdbf, &cdb, key, (int)strlen(key) );
 
-	while ( cdb_findnext( &cdbf ) > 0 && match < DB_RESULTS_MAX ) {
+	while ( cdb_findnext( &cdbf ) > 0 ) {
 		vpos = cdb_datapos( &cdb );
 		vlen = cdb_datalen( &cdb );
 
@@ -204,22 +171,26 @@ find_records( char *key, parsed **results )
 		if ( (val = calloc( vlen, sizeof(char) )) == NULL ) {
 			debug( 5, LOC, "Unable to allocate memory for DB value storage: %s\n",
 					strerror(errno) );
-			return( 0 );
+			cdb_free( &cdb );
+			return( NULL );
 		}
 		cdb_read( &cdb, val, vlen, vpos );
 
-		/* if it parses properly, add it to the result set. */
-		result = parse_rule( val );
-		if ( result != NULL ) {
-			results[match] = result;
-			debug( 4, LOC, "DB match %d for key '%s': %s\n", match+1, key, val );
-		}
-
-		match++;
+		/* check it against the request */
+		debug( 4, LOC, "DB match for key '%s': %s\n", key, val );
+		rule = parse_rule( val );
 		free( val );
+		if ( rule != NULL ) {
+			if ( check_rule( rule, p_request ) == 0 ) {
+				finish_parsed( rule );
+			}
+			else {
+				break;
+			}
+		}
 	}
 
 	cdb_free( &cdb );
-	return match;
+	return( rule );
 }
 
