@@ -88,7 +88,7 @@ db_create_new( char *txt )
 
 	/* open temporary file */
 	debug( 0, LOC, "Creating/updating database (%s) using rules in \"%s\"\n", v.dbname, txt );
-	sprintf( tmpfile, "/tmp/volta-db-%d.tmp", getpid() );
+	sprintf( tmpfile, "volta-db-%d.tmp", getpid() );
 	if ( (tmp_fd = open( tmpfile,
 						 O_RDWR|O_CREAT, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH )) == -1 ) {
 		debug( 0, LOC, "Error writing temporary file: %s\n", strerror(errno) );
@@ -131,7 +131,7 @@ db_create_new( char *txt )
 
 	/* move cdb into place */
 	if ( (rename( tmpfile, v.dbname )) == -1 ) {
-		debug( 1, LOC, "Unable to move temp cdb into place: %s", strerror(errno) );
+		debug( 0, LOC, "Unable to move temp cdb into place: %s", strerror(errno) );
 		return( 1 );
 	}
 
@@ -182,7 +182,7 @@ find_rule( char *key, parsed *p_request )
 		free( val );
 		if ( rule != NULL ) {
 			if ( check_rule( rule, p_request ) == 0 ) {
-				finish_parsed( rule );
+				finish_parsed( rule ), rule = NULL;
 			}
 			else {
 				break;

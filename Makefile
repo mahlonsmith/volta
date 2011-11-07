@@ -93,7 +93,7 @@ tags:
 	ctags *.h *.c
 
 clobber: clean
-	rm -f parser.c volta.cdb ChangeLog tags
+	rm -f parser.c volta.db ChangeLog tags
 
 clean:
 	-rm -f volta *_graph.* *.o *.prof*

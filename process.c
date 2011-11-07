@@ -108,6 +108,7 @@ rewrite( parsed *request, parsed *rule )
 	printf( "%s", rule->path ? rule->path : request->path );
 
 	printf("\n");
+	fflush( stdout );
 	return;
 }
 
@@ -134,7 +135,7 @@ check_rule( parsed *rule, parsed *p_request )
 	}
 
 	/* compile the regexp */
-	if ( (re_rv = regcomp( &re, rule->path_re, REG_EXTENDED | REG_NOSUB )) != 0 ) {
+	if ( (re_rv = regcomp( &re, rule->path_re, REG_EXTENDED | REG_NOSUB | REG_ICASE )) != 0 ) {
 		regerror( re_rv, &re, re_err, 128 );
 		debug( 4, LOC, "Invalid regex: \"%s\": %s\n", rule->path_re, re_err );
 		regfree( &re );

@@ -75,6 +75,7 @@ debug( int level, char *file, int line, const char *fmt, ... )
 			 PROG, timestamp, getpid(), level, file, line );
 	vfprintf( stderr, fmt, args );
 	va_end( args );
+	fflush( stderr );
 
 	return;
 }
@@ -88,6 +89,7 @@ out( const char *str )
 {
 	if ( v.debugmode >= 5 ) return;
 	fprintf( stdout, "%s", str );
+	fflush( stdout );
 	return;
 }
 
@@ -164,6 +166,7 @@ extend_line( char *line, const char *buf )
 				v.timer.lines+1, (line_realloc == NULL ? strerror(errno) : "Line too large") );
 		free( line ), line = NULL;
 		printf( "\n" );
+		fflush( stdout );
 	}
 	else {
 		line = line_realloc;
