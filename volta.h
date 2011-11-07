@@ -84,6 +84,7 @@ struct v_globals {
 	unsigned short int debugmode; /* debug level */
 	char dbname[128];             /* path to database file */
 	short int db_fd;              /* opened db file descriptor */
+	struct cdb db;                /* the cdb struct */
 
 	struct {
 		time_t start;             /* start time */

@@ -44,6 +44,7 @@ db_attach( void )
 	time_t now = time( NULL );
 	if ( v.timer.db_lastcheck > 0 ) {
 		if ( now - v.timer.db_lastcheck >= 10 ) {
+			cdb_free( &v.db );
 			close( v.db_fd );
 		}
 		else {
@@ -65,6 +66,8 @@ db_attach( void )
 	}
 
 	v.timer.db_lastcheck = now;
+	cdb_init( &v.db, v.db_fd );
+
 	return( 0 );
 }
 
@@ -151,7 +154,6 @@ find_rule( char *key, parsed *p_request )
 {
 	if ( key == NULL ) return( NULL );
 
-	struct cdb cdb;
 	struct cdb_find cdbf; /* structure to hold current find position */
 
 	parsed *rule = NULL;
@@ -160,21 +162,19 @@ find_rule( char *key, parsed *p_request )
 
 	/* initialize search structs */
 	if ( db_attach() == -1 ) return( NULL );
-	cdb_init( &cdb, v.db_fd );
-	cdb_findinit( &cdbf, &cdb, key, (int)strlen(key) );
+	cdb_findinit( &cdbf, &v.db, key, (int)strlen(key) );
 
 	while ( cdb_findnext( &cdbf ) > 0 ) {
-		vpos = cdb_datapos( &cdb );
-		vlen = cdb_datalen( &cdb );
+		vpos = cdb_datapos( &v.db );
+		vlen = cdb_datalen( &v.db );
 
 		/* pull the value from the db */
 		if ( (val = calloc( vlen, sizeof(char) )) == NULL ) {
 			debug( 5, LOC, "Unable to allocate memory for DB value storage: %s\n",
 					strerror(errno) );
-			cdb_free( &cdb );
 			return( NULL );
 		}
-		cdb_read( &cdb, val, vlen, vpos );
+		cdb_read( &v.db, val, vlen, vpos );
 
 		/* check it against the request */
 		debug( 4, LOC, "DB match for key '%s': %s\n", key, val );
@@ -190,7 +190,6 @@ find_rule( char *key, parsed *p_request )
 		}
 	}
 
-	cdb_free( &cdb );
 	return( rule );
 }
 

@@ -131,6 +131,7 @@ main( int argc, char *argv[] )
 void
 shutdown_actions( void )
 {
+	cdb_free( &v.db );
 	close( v.db_fd );
 	report_speed();
 }
