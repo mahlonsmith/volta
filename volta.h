@@ -117,7 +117,7 @@ struct db_input {
  */
 typedef struct parsed {
 	unsigned short int type;
-	unsigned short int wl;
+	unsigned short int negate;
 	char   *path_re;
 	char   *redir;
 	char   *scheme;
@@ -162,11 +162,9 @@ void shutdown_actions( void );
 
 void usage( char * );
 void debug( int, char *, int, const char *, ... );
-void out( const char * );
 void reverse_str( char * );
 void lowercase_str( char *, unsigned short int );
 void report_speed( void );
-char *slurp_file( char * );
 char *extend_line( char *, const char * );
 char *copy_string_token( char *, unsigned short int );
 /* struct in_addr *copy_ipv4_token( char *, unsigned short int ); */
@@ -181,6 +179,7 @@ void parse_tld( parsed * );
 void finish_parsed( parsed * );
 void reset_results( parsed **, unsigned int );
 unsigned short int check_rule( parsed *, parsed * );
+void pass( parsed *, parsed * );
 void rewrite( parsed *, parsed * );
 
 #endif

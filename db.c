@@ -80,13 +80,11 @@ db_attach( void )
 unsigned short int
 db_create_new( char *txt )
 {
+	FILE *txt_f  = NULL;
+	parsed *rule = NULL;
+	char buf[ LINE_BUFSIZE*10 ], tmpfile[25];
+	int  tmp_fd, linenum = 0, parsed = 0, error = 0;
 	struct cdb_make cdbm;
-
-	char buf[ LINE_BUFSIZE*10 ];
-	char tmpfile[25];
-	int  tmp_fd;
-	FILE *txt_f = NULL;
-	int  linenum = 0, parsed = 0;
 	struct db_input *dbline;
 
 	/* open temporary file */
@@ -112,19 +110,33 @@ db_create_new( char *txt )
 		/* skip blank lines and comments */
 		if ( strlen(buf) == 1 || buf[0] == '#' ) continue;
 
-		/* validate and add! */
+		/* validate line */
 		dbline = parse_dbinput( buf );
 		if ( dbline == NULL ) {
-			debug( 0, LOC, "Invalid rule (line %d), skipping: %s", linenum, buf );
-			continue;
+			debug( 0, LOC, "Invalid rule (line %d), stopping: %s", linenum, buf );
+			error = 1;
+			break;
 		}
 
+		/* validate rule */
+		rule = parse_rule( dbline->val );
+		if ( rule == NULL ||
+			( rule->negate == 1 && rule->host != NULL ) ||
+			( rule->negate == 0 && rule->host == NULL )) {
+
+			debug( 0, LOC, "Invalid rule (line %d), stopping: %s", linenum, buf );
+			error = 1;
+			break;
+		}
+
+		/* looking good, add rule */
 		cdb_make_add( &cdbm, dbline->key, dbline->klen, dbline->val, dbline->vlen );
 		parsed++;
 
 		free( dbline->key );
 		free( dbline->val );
-		free( dbline );
+		free( dbline ), dbline = NULL;
+		finish_parsed( rule ), rule = NULL;
 	}
 
 	/* write indexes */
@@ -132,13 +144,22 @@ db_create_new( char *txt )
 	cdb_make_finish( &cdbm );
 	close( tmp_fd );
 
-	/* move cdb into place */
-	if ( (rename( tmpfile, v.dbname )) == -1 ) {
-		debug( 0, LOC, "Unable to move temp cdb into place: %s", strerror(errno) );
-		return( 1 );
+	if ( error == 1 ) {
+		/* delete the tmp db on errors */
+		if ( (unlink( tmpfile )) != 0 ) {
+			debug( 0, LOC, "Unable to remove temp cdb: %s", strerror(errno) );
+			return( 1 );
+		}
+	}
+	else {
+		/* move cdb into place */
+		if ( (rename( tmpfile, v.dbname )) == -1 ) {
+			debug( 0, LOC, "Unable to move temp cdb into place: %s", strerror(errno) );
+			return( 1 );
+		}
+		debug( 0, LOC, "Added %d rules to %s.\n", parsed, v.dbname );
 	}
 
-	debug( 0, LOC, "Added %d rules to %s.\n", parsed, v.dbname );
 	return( 0 );
 }
 
@@ -169,7 +190,7 @@ find_rule( char *key, parsed *p_request )
 		vlen = cdb_datalen( &v.db );
 
 		/* pull the value from the db */
-		if ( (val = calloc( vlen, sizeof(char) )) == NULL ) {
+		if ( (val = calloc( vlen+1, sizeof(char) )) == NULL ) {
 			debug( 5, LOC, "Unable to allocate memory for DB value storage: %s\n",
 					strerror(errno) );
 			return( NULL );
@@ -179,6 +200,7 @@ find_rule( char *key, parsed *p_request )
 		/* check it against the request */
 		debug( 4, LOC, "DB match for key '%s': %s\n", key, val );
 		rule = parse_rule( val );
+
 		free( val );
 		if ( rule != NULL ) {
 			if ( check_rule( rule, p_request ) == 0 ) {

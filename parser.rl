@@ -66,7 +66,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 parsed *
 parse_request( char *line )
 {
-   	/* machine required vars */
+	/* machine required vars */
 	unsigned short int cs = 1;
 	char *p   = line;
 	char *pe  = p + strlen(p);
@@ -149,16 +149,20 @@ parse_request( char *line )
 	client_ip      = ipv4                  >c_ip_start   %c_ip_finish   @!c_ip_error;
 	method         = upper+                >meth_start   %meth_finish   @!meth_error;
 
-	SquidLine = (
- 		start:   channel_id?                            -> Url,
-		Url:     scheme? host port? path?               -> Client,
+	URL = (
+		start:   channel_id?                            -> Url,
+		Url:     scheme? host port? path?               -> final
+ 	);
+
+	Squidvars = (
+		start:
 		Client:  space client_ip '/' ( hostname | '-' ) -> User,
 		User:    space pchar+                           -> Method,
 		Method:  space method                           -> KVPairs,
 		KVPairs: ( space any+ )?                        -> final
  	);
 
-	main := SquidLine '\n';
+	main := URL Squidvars? '\n';
 }%%
 
 	/* state machine */
@@ -186,7 +190,7 @@ parse_request( char *line )
 parsed *
 parse_rule( char *rewrite )
 {
-   	/* machine required vars */
+	/* machine required vars */
 	unsigned short int cs = 1;
 	char *p   = rewrite;
 	char *pe  = p + strlen(p);
@@ -203,7 +207,7 @@ parse_rule( char *rewrite )
 	action match_finish  { MARK_E(path_re) }
 	action redir_start   { MARK_S(redir) }
 	action redir_finish  { p_parsed->tokens.redir_length = 3; } # strip trailing colon
-	action wl_finish     { p_parsed->wl = 1; }
+	action negate_finish { p_parsed->negate = 1; }
 
 	action scheme_start  { MARK_S(scheme) }
 	action scheme_finish { MARK_E(scheme) }
@@ -225,18 +229,18 @@ parse_rule( char *rewrite )
 	ipv4      = digit{1,3} '.' digit{1,3} '.' digit{1,3} '.' digit{1,3};
 	ipv6      = ( xdigit | ':' )+;
 
-	whitelist = ( '-' sep )          %wl_finish;
-	path_re   = ( any - space )+     >match_start  %match_finish @!match_error;
+	negate    = ( '-' )                 %negate_finish;
+	path_re   = ( any - space )+        >match_start  %match_finish @!match_error;
 
-	redir     = ( digit{3} ':' )     >redir_start  %redir_finish;
-	scheme    = ( alpha{3,5} '://' ) >scheme_start %scheme_finish;
-	host      = ( hostname | ipv4 )  >host_start   %host_finish   @!host_error;
-	port      = ( ':' digit{1,5} )   >port_start   %port_finish;
-	path      = path_segment*        >path_start   %path_finish;
+	redir     = ( ('301' | '302') ':' ) >redir_start  %redir_finish;
+	scheme    = ( alpha{3,5} '://' )    >scheme_start %scheme_finish;
+	host      = ( hostname | ipv4 )     >host_start   %host_finish   @!host_error;
+	port      = ( ':' digit{1,5} )      >port_start   %port_finish;
+	path      = path_segment*           >path_start   %path_finish;
 
-	rewrite   = ( sep redir? scheme? host port? path? );
+	rewrite   = ( redir? scheme? host port? path? );
 
-	main := whitelist? path_re rewrite?;
+	main := path_re sep ( rewrite | negate );
 }%%
 
 	/* state machine */
@@ -264,7 +268,7 @@ parse_rule( char *rewrite )
 struct db_input *
 parse_dbinput( char *line )
 {
-   	/* machine required vars */
+	/* machine required vars */
 	unsigned short int cs = 1;
 	char *p   = line;
 	char *pe  = p + strlen(p);
@@ -301,9 +305,9 @@ parse_dbinput( char *line )
 	redir          = ( digit{3} ':' );
 	host           = ( hostname | ipv4 );
 
-	key = ( host | '*' )                      >key_start %key_finish @!key_error;
-	val = ( (token sep)? token (sep token)? ) >val_start %val_finish @!val_error;
-	#           wl       regex   rewrite
+	key = ( host | '*' )      >key_start %key_finish @!key_error;
+	val = ( token sep token ) >val_start %val_finish @!val_error;
+	#       regex     rewrite or negate
 	
 	main:= key sep val '\n';
 }%%
@@ -351,7 +355,7 @@ init_parsed( void )
 	}
 
 	p_parsed->type      = 0;
-	p_parsed->wl        = 0;
+	p_parsed->negate    = 0;
 	p_parsed->path_re   = NULL;
 	p_parsed->redir     = NULL;
 	p_parsed->scheme    = NULL;

@@ -17,7 +17,7 @@ ifeq ($(UNAME), Linux)
 debug: CFLAGS += $(CFLAGS_DEBUG)
 debug: LIBS += -lprofiler
 else
-volta: CFLAGS += -L/opt/local/lib -I/opt/local/include
+volta: CFLAGS += -L/opt/local/lib -I/opt/local/include -L/usr/local/lib -I/usr/local/include
 debug: CFLAGS += $(CFLAGS_DEBUG)\
 	$(shell pkg-config --cflags-only-I --libs-only-L $(DEPS_DEBUG))
 debug: LIBS += $(shell pkg-config --libs-only-l $(DEPS_DEBUG))

@@ -47,11 +47,8 @@ process( char *line )
 
 	/* If request parsing failed, return a blank line to squid
 	   to allow the request to pass through unmolested. */
-	if ( p_request == NULL ) {
-		out( "\n" );
-		finish_parsed( p_request );
-		return;
-	}
+	if ( p_request == NULL )
+		return pass( p_request, rule );
 
 	/*
 	 * Main rewrite logic.
@@ -78,17 +75,45 @@ process( char *line )
 	if ( rule == NULL ) rule = find_rule( p_request->tld, p_request );
 	if ( rule == NULL ) rule = find_rule( "*", p_request );
 
-	/* no matching rule still or whitelist rule?  no need to rewrite anything. */
-	if ( rule == NULL || rule->wl ) {
-		out( "\n" );
+	/* no matching rule still or negated rule?  no need to rewrite anything. */
+	if ( rule == NULL || rule->negate )
+		return pass( p_request, rule );
+
+	/* avoid trivial redirect loops */
+	if (
+		( rule->redir ) &&
+		( rule->scheme == NULL || ( strcmp(p_request->scheme, rule->scheme) == 0) ) &&
+		( rule->path   == NULL || ( strcmp(p_request->path,     rule->path) == 0) ) &&
+		( strcmp( p_request->host, rule->host) == 0 )
+	   ) {
+		debug( 2, LOC, "Potential rewrite loop, skipping rewrite.\n" );
+		return pass( p_request, rule );
 	}
+
 	/* otherwise, perform the rewrite. */
-	else {
-		rewrite( p_request, rule );
-	}
+	rewrite( p_request, rule );
 
 	finish_parsed( rule );
 	finish_parsed( p_request );
+	return;
+}
+
+
+/*
+ * Allow the request to pass through without being rewritten.
+ *
+ */
+void
+pass( parsed *request, parsed *rule )
+{
+	finish_parsed( rule );
+	finish_parsed( request );
+
+	if ( v.debugmode >= 5 ) return;
+
+	printf( "\n" );
+	fflush( stdout );
+
 	return;
 }
 
@@ -109,6 +134,7 @@ rewrite( parsed *request, parsed *rule )
 
 	printf("\n");
 	fflush( stdout );
+
 	return;
 }
 

@@ -82,19 +82,6 @@ debug( int level, char *file, int line, const char *fmt, ... )
 
 
 /*
- * Output to stdout for squid, unless the debug level is at or above 5.
- */
-void
-out( const char *str )
-{
-	if ( v.debugmode >= 5 ) return;
-	fprintf( stdout, "%s", str );
-	fflush( stdout );
-	return;
-}
-
-
-/*
  * Given a string, reverse it in place.
  */
 void
@@ -174,47 +161,6 @@ extend_line( char *line, const char *buf )
 	}
 
 	return( line );
-}
-
-
-/*
- * Read an entire file into memory, returning a pointer to the contents.
- * Returns NULL on error.
- *
- */
-char *
-slurp_file( char *file )
-{
-	FILE *fh       = NULL;
-	char *contents = NULL;
-	struct stat sb;
-
-	if ( stat( file, &sb ) != 0 ) {
-		debug( 1, LOC, "Unable to stat() file '%s': %s\n",
-				file, strerror(errno) );
-		return( NULL );
-	}
-
-	if ( (contents = malloc( sb.st_size + 1 )) == NULL ) {
-		debug( 5, LOC, "Unable to allocate memory for file '%s': %s\n",
-				file, strerror(errno) );
-		return( NULL );
-	}
-
-	if ( (fh = fopen( file, "r" )) == NULL ) {
-		debug( 1, LOC, "Could not open file for reading '%s': %s\n",
-				file, strerror(errno) );
-		return( NULL );
-	}
-
-	if ( fread( contents, sizeof(char), sb.st_size, fh ) != (unsigned int)sb.st_size ) {
-		debug( 5, LOC, "Short read for file '%s'?: %s\n", file );
-		fclose( fh );
-		return( NULL );
-	}
-
-	fclose( fh );
-	return( contents );
 }
 
 
