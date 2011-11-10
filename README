@@ -5,7 +5,7 @@ Volta
 What is volta?
 --------------
 
-Volta is a high performance, low resource URI rewriter for use with the
+Volta is a high-performance, low-resource URI rewriter for use with the
 Squid caching proxy server (http://www.squid-cache.org/.)  With it, you
 can dynamically alter URI requests that pass through Squid based on
 various criteria.
@@ -78,9 +78,9 @@ documented and in version control.
 
 When compiling the ruleset into the database format, volta detects
 malformed rules and stops if there are any problems, leaving your
-original database intact.  You can change the ruleset at any time while
-volta is running, and the new rules will take affect within about 10
-seconds.  No need to restart squid!
+original database intact. You can change the ruleset and recompile the
+database at any time while volta is running, and the new rules will take
+affect within about 10 seconds. No need to restart squid!
 
 There are two types of rules -- positive matches, and negative matches.
 Positive matches cause the rewrite, negative matches allow the original
@@ -111,11 +111,12 @@ Fields are separated by any amount of whitespace (spaces or tabs.)
 
     Third field: The redirect code and url to rewrite to.
 
-      Any pieces of a url that are omitted are automatically replaced
-      with the original request's element -- the exception is a hostname,
-      which is required.  If you omit a redirect code, the URL rewrite is
-      transparent to the client.  You can attach a 301: or 302: prefix to
-      cause a permanent or temporary code to be respectively sent, instead.
+      Any pieces of a url that are omitted are automatically replaced with
+      the original request's element -- the exception is a hostname, which
+      is required. If you omit a redirect code, the URL rewrite is
+      transparent to the client. You can attach a 301: or 302: prefix to
+      cause a permanent or temporary (respectively) redirect response to be
+      sent, instead.
 
 
 ### Negative matches:
@@ -167,9 +168,4 @@ an archival page:
 
 	martini.nu /blog/2011 -
 	martini.nu /blog 301:martini.nu/content-archived.html
-
-
-Turn off rewriting for specific network segment or IP address:
-
-	Squid has this ability built in -- see the 'url_rewrite_access' setting.
 
