@@ -7,7 +7,7 @@ UNAME       := $(shell uname)
 DEPS_DEBUG   = libprofiler
 CFLAGS       = -O2
 CFLAGS_DEBUG = -DDEBUG -DPROG='"volta (debugmode)"' -ggdb -ansi -Wall
-LIBS         = -lcdb
+LIBS         = -lcdb -llua -lm
 OBJS         = $(patsubst %.c,%.o,$(wildcard *.c))
 
 .PHONY : parsegraph profile clean clobber release

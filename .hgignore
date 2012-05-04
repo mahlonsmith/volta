@@ -2,7 +2,6 @@
 ^volta.db$
 ^.*_graph.*
 ^tags$
-.*debug
-.*.o
+.o$
 ^misc
 ^parser.c

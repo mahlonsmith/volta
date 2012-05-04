@@ -1,4 +1,5 @@
-
+/* vim: set noet nosta sw=4 ts=4 ft=c : */
+/*
 Copyright (c) 2011-2012, Mahlon E. Smith <mahlon@martini.nu>
 All rights reserved.
 Redistribution and use in source and binary forms, with or without
@@ -25,4 +26,20 @@ LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
 ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
+#ifndef _LUA_H
+#define _LUA_H
+
+/*
+ * Function prototypes
+ *
+ */
+int luaV_globalindex( lua_State * );
+int luaV_print( lua_State * );
+lua_State *luaV_setup( void );
+void luaV_setup_request( parsed * );
+char *luaV_run( parsed *, char * );
+
+#endif
 

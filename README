@@ -11,7 +11,8 @@ can dynamically alter URI requests that pass through Squid based on
 various criteria.
 
 It uses a state machine to parse URIs and rules, and a constant database
-to store and access those rules.
+to store and access those rules.  It can then either perform conditional
+rewrites internally, or by evaluating Lua scripts.
 
 
 Why is it called "volta"?
@@ -74,7 +75,8 @@ Rule file syntax
 Volta's rule syntax is designed to be easy to parse by humans and
 machines.  Blank lines are skipped, as is any line that starts with the
 '#' character, so you can keep the ascii version of your rules well
-documented and in version control.
+documented and in version control.  There is no practical limit on the
+number of rules in this database.
 
 When compiling the ruleset into the database format, volta detects
 malformed rules and stops if there are any problems, leaving your
@@ -83,9 +85,10 @@ volta is running, and the new rules will take affect within about 10
 seconds.  No need to restart squid!
 
 There are two types of rules -- positive matches, and negative matches.
-Positive matches cause the rewrite, negative matches allow the original
-request to pass.  Rule order is consistent, top-down, first match wins.
-Fields are separated by any amount of whitespace (spaces or tabs.)
+Positive matches cause the rewrite, negative matches intentionally allow
+the original request to pass.  Rule order is consistent, top-down, first
+match wins.  Fields are separated by any amount of whitespace (spaces or
+tabs.)
 
 
 ### Positive matches:
@@ -104,9 +107,9 @@ Fields are separated by any amount of whitespace (spaces or tabs.)
 
 	  This can be an exact match ('/path/to/something.html'), a regular
 	  expression ('\.(jpg|gif|png)$'), or a single '*' to match for any
-	  path. Regular expressions are matches without case sensitivity.  There
-	  is currently no support for capturing, though this may be added in
-	  a future release.
+	  path. Regular expressions are matched without case sensitivity.  There
+	  is currently no internal support for captures, though you can use
+	  a Lua rule (see below) for more complex processing.
 
 
     Third field: The redirect code and url to rewrite to.
@@ -116,6 +119,11 @@ Fields are separated by any amount of whitespace (spaces or tabs.)
       which is required.  If you omit a redirect code, the URL rewrite is
       transparent to the client.  You can attach a 301: or 302: prefix to
       cause a permanent or temporary code to be respectively sent, instead.
+
+      If you require more complex processing than what volta provides
+      internally, you can also specify a path to a Lua script (prefixed
+      with 'lua:'.)  See the 'Lua rules' section of this README for more
+	  information.
 
 
 ### Negative matches:
@@ -169,7 +177,62 @@ an archival page:
 	martini.nu /blog 301:martini.nu/content-archived.html
 
 
+Send all requests to reddit/r/WTF/* through a lua script for further processing.
+
+	reddit.com /r/wtf lua:/path/to/a/lua-script.lua
+
+
 Turn off rewriting for specific network segment or IP address:
 
 	Squid has this ability built in -- see the 'url_rewrite_access' setting.
+	Alternatively, do the checks in lua.
+
+
+
+Lua Rules
+---------
+
+Volta has an embedded Lua interpreter that you can use to perform all
+kinds of conditional rewrites.  Read more about the syntax of the Lua
+language here: http://www.lua.org/manual/5.1/
+
+### Loading a script
+
+To use a Lua script, prefix the rewrite target of a volta rule with
+'lua:'.  The rest of the target is then treated as a path to the script.
+(You can find an example in the Examples section of this README.)
+
+You can specify a path to either an ascii file, or Lua bytecode. (If
+speed is an absolute premium, I'm seeing around a 25% performance
+increase by using Lua bytecode files.)
+
+You can use different scripts for different rules, or use the same
+script across any number of separate rules.
+
+There is no need to restart squid when modifying Lua rules.  Changes are
+seen immediately.
+
+
+### Environment
+
+* Global variable declarations are disabled, so scripts can't accidently stomp on each other.  All variables must be declared with the 'local' keyword.
+* There is a global table called 'shared' you may use if you want to share data between separate scripts, or remember things in-between rule evaluations.
+* The details of the request can be found in a table, appropriately named 'request'.  HTTP scheme, host, path, port, method, client_ip, and domain are all available by default from the request table.
+* Calling Lua's print() function emits debug information to stderr.  Use a debug level of 2 or higher to see it.
+
+
+### Return value
+
+The return value of the script is sent unmodified to squid, which should
+be a URL the request is rewritten to, with an optional redirect code
+prefix (301 or 302.)
+
+Omitting a return value, or returning 'nil' has the same effect as a negative
+rule match -- the original request is allowed through without any rewrite.
+
+
+An extremely simple Lua rule script can be found in the 'examples'
+directory, distributed with volta.
+
+
 

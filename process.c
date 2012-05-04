@@ -1,6 +1,6 @@
 /* vim: set noet nosta sw=4 ts=4 ft=c : */
 /*
-Copyright (c) 2011, Mahlon E. Smith <mahlon@martini.nu>
+Copyright (c) 2011-2012, Mahlon E. Smith <mahlon@martini.nu>
 All rights reserved.
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -30,6 +30,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "volta.h"
 #include "db.h"
+#include "lua.h"
 
 
 /*
@@ -82,16 +83,34 @@ process( char *line )
 	/* avoid trivial redirect loops */
 	if (
 		( rule->redir ) &&
-		( rule->scheme == NULL || ( strcmp(p_request->scheme, rule->scheme) == 0) ) &&
-		( rule->path   == NULL || ( strcmp(p_request->path,     rule->path) == 0) ) &&
-		( strcmp( p_request->host, rule->host) == 0 )
+		( rule->scheme == NULL || ( p_request->scheme && ( strcmp(p_request->scheme, rule->scheme) == 0) )) &&
+		( rule->path   == NULL || ( strcmp(p_request->path, rule->path) == 0) ) &&
+		( strcmp( p_request->host, rule->host ) == 0 )
 	   ) {
 		debug( 2, LOC, "Potential rewrite loop, skipping rewrite.\n" );
 		return pass( p_request, rule );
 	}
 
-	/* otherwise, perform the rewrite. */
-	rewrite( p_request, rule );
+	/* At this point we know we'll be doing a rewrite. */
+
+	/* Pass the request to lua for processing if we saw a 'lua:' tag. */
+	if ( rule->lua == 1 ) {
+		char *rewrite_string = luaV_run( p_request, rule->luapath );
+
+		/* the script returned nil, or otherwise had an error. */
+		if ( rewrite_string == NULL ) return pass( p_request, rule );
+
+		/* send squid the lua return value. */
+		if ( v.debugmode < 5 ) {
+			puts( rewrite_string );
+			fflush( stdout );
+		}
+	}
+
+	/* otherwise, perform the rewrite internally. */
+	else {
+		rewrite( p_request, rule );
+	}
 
 	finish_parsed( rule );
 	finish_parsed( p_request );

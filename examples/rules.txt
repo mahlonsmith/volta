@@ -1,0 +1,27 @@
+
+#------------------------------------------------------------------------------
+# This is an example volta rules file.  In order for volta to use it,
+# it needs to be converted to a database for fast lookup.  See the
+# README file, distributed with volta, for instructions.
+#------------------------------------------------------------------------------
+
+# Force all requests to Google to use SSL
+# http://www.google.com/search?q=test --> https://www.google.com/search?q=test
+google.com * 302:https://www.google.com
+
+# Transparently alter all uploaded images on imgur to be my face:  :)
+i.imgur.com \.(gif|png|jpg)$ http://www.martini.nu/images/mahlon.jpg
+
+# Expand a local, non qualified hostname to a FQDN (useful alongside the
+# 'dns_defnames' squid setting to enforce browser proxy behaviors):
+local-example * local-example.company.com
+
+# Cause all blog content except for 2011 posts to permanently redirect to
+# an archival page.
+martini.nu /blog/2011 -
+martini.nu /blog 301:martini.nu/content-archived.html
+
+# Send all requests to reddit/r/WTF/* through a lua script for
+# further processing.
+reddit.com /r/wtf lua:examples/lua-example.lua
+

@@ -208,18 +208,21 @@ parse_rule( char *rewrite )
 	action redir_start   { MARK_S(redir) }
 	action redir_finish  { p_parsed->tokens.redir_length = 3; } # strip trailing colon
 	action negate_finish { p_parsed->negate = 1; }
+	action luapath_start { p_parsed->lua = 1; MARK_S(luapath) }
 
-	action scheme_start  { MARK_S(scheme) }
-	action scheme_finish { MARK_E(scheme) }
-	action host_start    { MARK_S(host) }
-	action host_finish   { MARK_E(host) }
-	action port_start    { p_parsed->tokens.port_start = p+1; } # strip leading colon
-	action port_finish   { MARK_E(port) }
-	action path_start    { MARK_S(path) }
-	action path_finish   { MARK_E(path) }
+	action scheme_start   { MARK_S(scheme) }
+	action scheme_finish  { MARK_E(scheme) }
+	action host_start     { MARK_S(host) }
+	action host_finish    { MARK_E(host) }
+	action port_start     { p_parsed->tokens.port_start = p+1; } # strip leading colon
+	action port_finish    { MARK_E(port) }
+	action path_start     { MARK_S(path) }
+	action path_finish    { MARK_E(path) }
+	action luapath_finish { MARK_E(luapath) }
 
-	action match_error { debug( 3, LOC, "Unable to parse the rule path matcher.\n" ); }
-	action host_error  { debug( 3, LOC, "Unable to parse the rule hostname.\n" ); }
+	action match_error   { debug( 3, LOC, "Unable to parse the rule path matcher.\n" ); }
+	action host_error    { debug( 3, LOC, "Unable to parse the rule hostname.\n" ); }
+	action luapath_error { debug( 3, LOC, "Unable to parse the lua path.\n" ); }
 
 	host_component  = alnum | ( alnum [a-zA-Z0-9\-_]* alnum );
 	path_segment    = '/' ( any - space )*;
@@ -230,7 +233,8 @@ parse_rule( char *rewrite )
 	ipv6      = ( xdigit | ':' )+;
 
 	negate    = ( '-' )                 %negate_finish;
-	path_re   = ( any - space )+        >match_start  %match_finish @!match_error;
+	path_re   = ( any - space )+        >match_start    %match_finish   @!match_error;
+	luapath   = ( any - space )+        >luapath_start  %luapath_finish @!luapath_error;
 
 	redir     = ( ('301' | '302') ':' ) >redir_start  %redir_finish;
 	scheme    = ( alpha{3,5} '://' )    >scheme_start %scheme_finish;
@@ -239,8 +243,9 @@ parse_rule( char *rewrite )
 	path      = path_segment*           >path_start   %path_finish;
 
 	rewrite   = ( redir? scheme? host port? path? );
+	luarule   = ( 'lua:' luapath );
 
-	main := path_re sep ( rewrite | negate );
+	main := path_re sep ( rewrite | negate | luarule );
 }%%
 
 	/* state machine */
@@ -302,12 +307,10 @@ parse_dbinput( char *line )
 	hostname       = host_component ( '.' host_component )* '.'?;
 	ipv4           = digit{1,3} '.' digit{1,3} '.' digit{1,3} '.' digit{1,3};
 	token          = ( any - space )+;
-	redir          = ( digit{3} ':' );
 	host           = ( hostname | ipv4 );
 
 	key = ( host | '*' )      >key_start %key_finish @!key_error;
 	val = ( token sep token ) >val_start %val_finish @!val_error;
-	#       regex     rewrite or negate
 	
 	main:= key sep val '\n';
 }%%
@@ -356,6 +359,7 @@ init_parsed( void )
 
 	p_parsed->type      = 0;
 	p_parsed->negate    = 0;
+	p_parsed->lua       = 0;
 	p_parsed->path_re   = NULL;
 	p_parsed->redir     = NULL;
 	p_parsed->scheme    = NULL;
@@ -366,6 +370,7 @@ init_parsed( void )
 	p_parsed->user      = NULL;
 	p_parsed->method    = NULL;
 	p_parsed->client_ip = NULL;
+	p_parsed->luapath   = NULL;
 
 	p_parsed->tokens.path_re_start  = NULL;
 	p_parsed->tokens.redir_start    = NULL;
@@ -375,6 +380,7 @@ init_parsed( void )
 	p_parsed->tokens.path_start     = NULL;
 	p_parsed->tokens.meth_start     = NULL;
 	p_parsed->tokens.c_ip_start     = NULL;
+	p_parsed->tokens.luapath_start  = NULL;
 	p_parsed->tokens.path_re_length = 0;
 	p_parsed->tokens.redir_length   = 0;
 	p_parsed->tokens.scheme_length  = 0;
@@ -383,6 +389,7 @@ init_parsed( void )
 	p_parsed->tokens.path_length    = 0;
 	p_parsed->tokens.meth_length    = 0;
 	p_parsed->tokens.c_ip_length    = 0;
+	p_parsed->tokens.luapath_length = 0;
 
 	return p_parsed;
 }
@@ -411,6 +418,7 @@ finish_parsed( parsed *p_parsed )
 	if ( p_parsed->type == RULE ) {
 		free( p_parsed->path_re );
 		free( p_parsed->redir );
+		free( p_parsed->luapath );
 	}
 
 	free( p_parsed ), p_parsed = NULL;
@@ -446,6 +454,7 @@ populate_parsed( parsed *p_parsed )
 	if ( p_parsed->type == RULE ) {
 		p_parsed->path_re = COPY_STR( path_re );
 		p_parsed->redir   = COPY_STR( redir );
+		p_parsed->luapath = COPY_STR( luapath );
 	}
 
 	return;

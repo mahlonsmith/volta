@@ -11,6 +11,7 @@ Dependencies
 
  - TinyCDB  (http://www.corpit.ru/mjt/tinycdb.html)
  - GNU make (http://www.gnu.org/software/make/)
+ - Lua      (http://www.lua.org/)
 
 If available, install these dependencies from your OS packaging system
 of choice.

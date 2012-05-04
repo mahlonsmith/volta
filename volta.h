@@ -1,6 +1,6 @@
 /* vim: set noet nosta sw=4 ts=4 ft=c : */
 /*
-Copyright (c) 2011, Mahlon E. Smith <mahlon@martini.nu>
+Copyright (c) 2011-2012, Mahlon E. Smith <mahlon@martini.nu>
 All rights reserved.
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -57,8 +57,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <arpa/inet.h>
 */
 
-#include <cdb.h>
-
 #ifdef DEBUG
 #include <google/profiler.h>
 #endif
@@ -75,6 +73,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /* Aid debugging */
 #define LOC __FILE__, __LINE__
 
+#include <cdb.h>
+#include <lua.h>
+#include <lualib.h>
+#include <lauxlib.h>
+
 
 /*
  * a global struct for easy access to common vars 
@@ -85,6 +88,7 @@ struct v_globals {
 	char dbname[128];             /* path to database file */
 	short int db_fd;              /* opened db file descriptor */
 	struct cdb db;                /* the cdb struct */
+	lua_State *lua;               /* the lua interpreter */
 
 	struct {
 		time_t start;             /* start time */
@@ -118,6 +122,7 @@ struct db_input {
 typedef struct parsed {
 	unsigned short int type;
 	unsigned short int negate;
+	unsigned short int lua;
 	char   *path_re;
 	char   *redir;
 	char   *scheme;
@@ -129,6 +134,7 @@ typedef struct parsed {
 	char   *client_ip;
 	char   *user;
 	char   *method;
+	char   *luapath;
 
 	struct {
 		char *path_re_start;
@@ -139,6 +145,7 @@ typedef struct parsed {
 		char *path_start;
 		char *meth_start;
 		char *c_ip_start;
+		char *luapath_start;
 		unsigned short int path_re_length;
 		unsigned short int redir_length;
 		unsigned short int scheme_length;
@@ -147,6 +154,7 @@ typedef struct parsed {
 		unsigned int       path_length;
 		unsigned short int meth_length;
 		unsigned short int c_ip_length;
+		unsigned short int luapath_length;
 	} tokens;
 } parsed;
 

@@ -1,6 +1,6 @@
 /* vim: set noet nosta sw=4 ts=4 ft=c : */
 /*
-Copyright (c) 2011, Mahlon E. Smith <mahlon@martini.nu>
+Copyright (c) 2011-2012, Mahlon E. Smith <mahlon@martini.nu>
 All rights reserved.
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -122,7 +122,9 @@ db_create_new( char *txt )
 		rule = parse_rule( dbline->val );
 		if ( rule == NULL ||
 			( rule->negate == 1 && rule->host != NULL ) ||
-			( rule->negate == 0 && rule->host == NULL )) {
+			( rule->negate == 0 && rule->host == NULL ) ||
+			( rule->lua    == 1 && rule->luapath == NULL )
+		   ) {
 
 			debug( 0, LOC, "Invalid rule (line %d), stopping: %s", linenum, buf );
 			error = 1;

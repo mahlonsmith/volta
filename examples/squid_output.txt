@@ -1,0 +1,10 @@
+http://www.google.com/search?q=test 10.1.1.30/- - GET myip=10.1.1.1 myport=3128
+https://www.google.com/search?q=test 10.1.1.30/- - GET myip=10.1.1.1 myport=3128
+http://www.imgur.com/ 10.1.1.30/- - GET myip=10.1.1.1 myport=3128
+http://i.imgur.com/whatever.jpg 10.1.1.30/- - GET myip=10.1.1.1 myport=3128
+googleusercontent.com:443 10.1.1.40/- - CONNECT myip=10.1.1.1 myport=3128
+http://local-example/ 10.1.1.30/- - GET myip=10.1.1.1 myport=3128
+http://www.martini.nu/projects/volta/ 10.1.1.30/- - GET myip=10.1.1.1 myport=3128
+http://www.reddit.com/r/WTF/?wooyup=1 10.1.1.30/- - GET myip=10.1.1.1 myport=3128
+http://www.martini.nu/blog/2011/some-post.html 10.1.1.30/- - GET myip=10.1.1.1 myport=3128
+http://www.martini.nu/blog/2009/some-old-post.html 10.1.1.30/- - GET myip=10.1.1.1 myport=3128

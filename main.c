@@ -1,6 +1,6 @@
 /* vim: set noet nosta sw=4 ts=4 ft=c : */
 /*
-Copyright (c) 2011, Mahlon E. Smith <mahlon@martini.nu>
+Copyright (c) 2011-2012, Mahlon E. Smith <mahlon@martini.nu>
 All rights reserved.
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -30,6 +30,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "volta.h"
 #include "db.h"
+#include "lua.h"
 
 struct v_globals v;
 
@@ -53,6 +54,7 @@ main( int argc, char *argv[] )
 	v.timer.db_lastcheck = 0;
 	v.timer.start        = time( NULL );
 	v.timer.lines        = 0;
+	v.lua                = luaV_setup();
 
 	/* get_opt vars */
 	int opt = 0;
@@ -131,6 +133,7 @@ main( int argc, char *argv[] )
 void
 shutdown_actions( void )
 {
+	lua_close( v.lua );
 	cdb_free( &v.db );
 	close( v.db_fd );
 	report_speed();
