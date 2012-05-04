@@ -7,21 +7,62 @@ UNAME       := $(shell uname)
 DEPS_DEBUG   = libprofiler
 CFLAGS       = -O2
 CFLAGS_DEBUG = -DDEBUG -DPROG='"volta (debugmode)"' -ggdb -ansi -Wall
-LIBS         = -lcdb -llua -lm
+LIBS         = -lcdb
 OBJS         = $(patsubst %.c,%.o,$(wildcard *.c))
 
 .PHONY : parsegraph profile clean clobber release
 
-# Ubuntu: perftools doesn't currently register a .pc file
+
+########################################################################
+### P L A T F O R M  T A R G E T S
+########################################################################
+
+# I hate this.  Tools like pkg-config are supposed to make finding
+# libraries easy across platforms.  They only work when everyone names
+# the libraries the same thing, unfortunately.  (Why name the libs with
+# the version number, when pkg-config supports built in versioning??)
+# And no, I'm not going to use autoconf, which just takes your build
+# problems and makes a whole bunch of new baby problems for you to
+# deal with.  Gaaarrgghghh.
+#
+# If you have problems building volta, manually pass the correct CFLAGS
+# and LIBS to the 'make' command line for your platform.
+#
+# The following works for OSX with macports or homebrew (10.6/10.7),
+# FreeBSD 8.x and 9.x, and Ubuntu 11.10 and 12.04.
+
+# Ubuntu
+#  - perftools doesn't currently register a .pc file at all
+#  - lua is called 'lua5.1'
 ifeq ($(UNAME), Linux)
+volta: CFLAGS += -L/usr/lib -I/usr/include
+volta: CFLAGS += $(shell pkg-config --cflags-only-I --libs-only-L lua5.1)
+volta: LIBS   += $(shell pkg-config --libs-only-l lua5.1)
 debug: CFLAGS += $(CFLAGS_DEBUG)
-debug: LIBS += -lprofiler
-else
-volta: CFLAGS += -L/opt/local/lib -I/opt/local/include -L/usr/local/lib -I/usr/local/include
 debug: CFLAGS += $(CFLAGS_DEBUG)\
-	$(shell pkg-config --cflags-only-I --libs-only-L $(DEPS_DEBUG))
-debug: LIBS += $(shell pkg-config --libs-only-l $(DEPS_DEBUG))
+	$(shell pkg-config --cflags-only-I --libs-only-L lua5.1)
+debug: LIBS   += $(shell pkg-config --libs-only-l lua5.1) -lprofiler
+
+# FreeBSD
+# - lua is called 'lua-5.1'
+else ifeq ($(UNAME), FreeBSD)
+volta: CFLAGS += -L/usr/local/lib -I/usr/local/include
+volta: CFLAGS += $(shell pkg-config --cflags-only-I --libs-only-L lua-5.1)
+volta: LIBS   += $(shell pkg-config --libs-only-l lua-5.1)
+debug: CFLAGS += $(CFLAGS_DEBUG)\
+    $(shell pkg-config --cflags-only-I --libs-only-L lua-5.1 $(DEPS_DEBUG))
+debug: LIBS += $(shell pkg-config --libs-only-l lua-5.1 $(DEPS_DEBUG))
+
+# Darwin, everyone else (best guess?)
+# - lua is called 'lua', hopefully!
+else
+volta: CFLAGS += $(shell pkg-config --cflags-only-I --libs-only-L lua)
+volta: LIBS   += $(shell pkg-config --libs-only-l lua) 
+debug: CFLAGS += $(CFLAGS_DEBUG)\
+    $(shell pkg-config --cflags-only-I --libs-only-L lua $(DEPS_DEBUG))
+debug: LIBS += $(shell pkg-config --libs-only-l lua $(DEPS_DEBUG))
 endif
+
 
 # Fix parser line number display in debug mode
 ifeq (,$(findstring debug,$(MAKECMDGOALS)))
