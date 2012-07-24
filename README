@@ -46,13 +46,13 @@ the volta database is stored on disk:
 
 Busy servers:
 
-Make sure rewrite_concurrency is disabled, volta is single threaded.
-Instead, just add more volta children.  They are lightweight, so load em
-up.  A proxy at my $DAYJOB is in use by around 450 people, and we get by
-nicely with 10 volta children.
+While Volta is lightweight enough to simply increase the amount of
+rewriter children, it also supports Squid's rewrite_concurrency format
+if you find that to be more efficient for your environment.  Adjust to
+taste.
 
-	url_rewrite_concurrency 0
-	url_rewrite_children 10
+	url_rewrite_concurrency 60
+	url_rewrite_children 5
 
 
 Using volta
@@ -233,6 +233,5 @@ rule match -- the original request is allowed through without any rewrite.
 
 An extremely simple Lua rule script can be found in the 'examples'
 directory, distributed with volta.
-
 
 

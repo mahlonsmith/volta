@@ -33,6 +33,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define MARK_S( LBL ) p_parsed->tokens.LBL ## _start = p;
 #define MARK_E( LBL ) p_parsed->tokens.LBL ## _length = p - ( *pe + p_parsed->tokens.LBL ## _start );
 
+#define COPY_STR( LBL ) copy_string_token( p_parsed->tokens.LBL ## _start, p_parsed->tokens.LBL ## _length )
+/* #define COPY_IP4( LBL ) copy_ipv4_token(   p_request->tokens.LBL ## _start, p_request->tokens.LBL ## _length ) */
+
 /* 
  * Tokenize an incoming line from squid, returning a parsed and populated
  * structure to make redirection decisions against.  This pointer should
@@ -79,11 +82,8 @@ parse_request( char *line )
 %%{
 	machine request_parser;
 
-	action channel_id_found  {
-		debug( 1, LOC, "Channel ID found in redirector input.  Set 'url_rewrite_concurrency' to '0' in squid.\n" );
-		fbreak;
-	}
-
+	action chid_start    { MARK_S(chid) }
+	action chid_finish   { MARK_E(chid) }
 	action scheme_start  { MARK_S(scheme) }
 	action scheme_finish { MARK_E(scheme) }
 	action host_start    { MARK_S(host) }
@@ -141,7 +141,7 @@ parse_request( char *line )
 	ipv4           = digit{1,3} '.' digit{1,3} '.' digit{1,3} '.' digit{1,3};
 	ipv6           = ( xdigit | ':' )+;
 
-	channel_id     = ( digit+ space )      %channel_id_found;
+	channel_id     = ( digit+ space )      >chid_start   %chid_finish;
 	scheme         = ( alpha{3,5} '://' )  >scheme_start %scheme_finish @!scheme_error;
 	host           = ( hostname | ipv4 )   >host_start   %host_finish   @!host_error;
 	port           = ( ':' digit{1,5} )    >port_start   %port_finish;
@@ -168,12 +168,16 @@ parse_request( char *line )
 	/* state machine */
 	%% write exec;
 
-	/* If we were given an invalid line, bail early */
+	/*
+	 * If we were given an invalid line, bail early after remembering
+	 * the channel ID.
+	 *
+	 */
 	if ( cs < %%{ write first_final; }%% ) {
-		free( p_parsed ), p_parsed = NULL;
 		debug( 3, LOC, "Invalid request line (%d), skipped\n", v.timer.lines + 1 );
 		debug( 4, LOC, "%s", line );
-		return( NULL );
+		p_parsed->chid = COPY_STR( chid );
+		return( p_parsed );
 	}
 
 	debug( 6, LOC, "%s", line );
@@ -357,9 +361,11 @@ init_parsed( void )
 		return( NULL );
 	}
 
+	p_parsed->valid     = 0;
 	p_parsed->type      = 0;
 	p_parsed->negate    = 0;
 	p_parsed->lua       = 0;
+	p_parsed->chid      = NULL;
 	p_parsed->path_re   = NULL;
 	p_parsed->redir     = NULL;
 	p_parsed->scheme    = NULL;
@@ -372,6 +378,7 @@ init_parsed( void )
 	p_parsed->client_ip = NULL;
 	p_parsed->luapath   = NULL;
 
+	p_parsed->tokens.chid_start     = NULL;
 	p_parsed->tokens.path_re_start  = NULL;
 	p_parsed->tokens.redir_start    = NULL;
 	p_parsed->tokens.scheme_start   = NULL;
@@ -381,6 +388,7 @@ init_parsed( void )
 	p_parsed->tokens.meth_start     = NULL;
 	p_parsed->tokens.c_ip_start     = NULL;
 	p_parsed->tokens.luapath_start  = NULL;
+	p_parsed->tokens.chid_length    = 0;
 	p_parsed->tokens.path_re_length = 0;
 	p_parsed->tokens.redir_length   = 0;
 	p_parsed->tokens.scheme_length  = 0;
@@ -410,6 +418,7 @@ finish_parsed( parsed *p_parsed )
 	free( p_parsed->port );
 
 	if ( p_parsed->type == REQUEST ) {
+		free( p_parsed->chid );
 		free( p_parsed->tld );
 		free( p_parsed->method );
 		free( p_parsed->client_ip );
@@ -427,9 +436,6 @@ finish_parsed( parsed *p_parsed )
 }
 
 
-#define COPY_STR( LBL ) copy_string_token( p_parsed->tokens.LBL ## _start, p_parsed->tokens.LBL ## _length )
-/* #define COPY_IP4( LBL ) copy_ipv4_token(   p_request->tokens.LBL ## _start, p_request->tokens.LBL ## _length ) */
-
 /*
  * Take the previously parsed token locations and copy them into the request struct.
  *
@@ -443,6 +449,8 @@ populate_parsed( parsed *p_parsed )
 	p_parsed->port   = COPY_STR( port );
 
 	if ( p_parsed->type == REQUEST ) {
+		p_parsed->valid     = 1;
+		p_parsed->chid      = COPY_STR( chid );
 		p_parsed->method    = COPY_STR( meth );
 		p_parsed->client_ip = COPY_STR( c_ip );
 		/* p_request->client_ip = COPY_IP4( c_ip ); */

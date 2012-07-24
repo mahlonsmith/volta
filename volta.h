@@ -120,9 +120,11 @@ struct db_input {
  *
  */
 typedef struct parsed {
+	unsigned short int valid;
 	unsigned short int type;
 	unsigned short int negate;
 	unsigned short int lua;
+	char   *chid;
 	char   *path_re;
 	char   *redir;
 	char   *scheme;
@@ -137,6 +139,7 @@ typedef struct parsed {
 	char   *luapath;
 
 	struct {
+		char *chid_start;
 		char *path_re_start;
 		char *redir_start;
 		char *scheme_start;
@@ -146,6 +149,7 @@ typedef struct parsed {
 		char *meth_start;
 		char *c_ip_start;
 		char *luapath_start;
+		unsigned short int chid_length;
 		unsigned short int path_re_length;
 		unsigned short int redir_length;
 		unsigned short int scheme_length;

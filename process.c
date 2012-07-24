@@ -48,7 +48,7 @@ process( char *line )
 
 	/* If request parsing failed, return a blank line to squid
 	   to allow the request to pass through unmolested. */
-	if ( p_request == NULL )
+	if ( p_request == NULL || p_request->valid == 0 )
 		return pass( p_request, rule );
 
 	/*
@@ -102,6 +102,7 @@ process( char *line )
 
 		/* send squid the lua return value. */
 		if ( v.debugmode < 5 ) {
+			if ( p_request->chid ) printf( "%s", p_request->chid );
 			puts( rewrite_string );
 			fflush( stdout );
 		}
@@ -125,14 +126,18 @@ process( char *line )
 void
 pass( parsed *request, parsed *rule )
 {
-	finish_parsed( rule );
-	finish_parsed( request );
+	if ( v.debugmode >= 5 ) {
+		finish_parsed( rule );
+		finish_parsed( request );
+		return;
+	}
 
-	if ( v.debugmode >= 5 ) return;
-
+	if ( request && request->chid ) printf( "%s", request->chid );
 	printf( "\n" );
 	fflush( stdout );
 
+	finish_parsed( rule );
+	finish_parsed( request );
 	return;
 }
 
@@ -146,6 +151,7 @@ rewrite( parsed *request, parsed *rule )
 {
 	if ( rule == NULL || v.debugmode >= 5 ) return;
 
+	if ( request->chid ) printf( "%s", request->chid );
 	if ( rule->redir ) printf( "%s:", rule->redir );
 	printf( "%s%s", (rule->scheme ? rule->scheme : request->scheme), rule->host );
 	if ( rule->port ) printf( ":%s", rule->port );

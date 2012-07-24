@@ -8,3 +8,7 @@ http://www.martini.nu/projects/volta/ 10.1.1.30/- - GET myip=10.1.1.1 myport=312
 http://www.reddit.com/r/WTF/?wooyup=1 10.1.1.30/- - GET myip=10.1.1.1 myport=3128
 http://www.martini.nu/blog/2011/some-post.html 10.1.1.30/- - GET myip=10.1.1.1 myport=3128
 http://www.martini.nu/blog/2009/some-old-post.html 10.1.1.30/- - GET myip=10.1.1.1 myport=3128
+4 http://www.martini.nu/projects/volta/ 10.1.1.30/- - GET myip=10.1.1.1 myport=3128
+5 http://i.imgur.com/whatever.jpg 10.1.1.30/- - GET myip=10.1.1.1 myport=3128
+6 http://www.reddit.com/r/WTF/?wooyup=1 10.1.1.30/- - GET myip=10.1.1.1 myport=3128
+7 http://www.example.com/yup 10.1.1.30/- - GET myip=10.1.1.1 myport=3128

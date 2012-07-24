@@ -38,7 +38,6 @@ ifeq ($(UNAME), Linux)
 volta: CFLAGS += -L/usr/lib -I/usr/include
 volta: CFLAGS += $(shell pkg-config --cflags-only-I --libs-only-L lua5.1)
 volta: LIBS   += $(shell pkg-config --libs-only-l lua5.1)
-debug: CFLAGS += $(CFLAGS_DEBUG)
 debug: CFLAGS += $(CFLAGS_DEBUG)\
 	$(shell pkg-config --cflags-only-I --libs-only-L lua5.1)
 debug: LIBS   += $(shell pkg-config --libs-only-l lua5.1) -lprofiler
