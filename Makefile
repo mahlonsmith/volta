@@ -29,28 +29,28 @@ OBJS         = $(patsubst %.c,%.o,$(wildcard *.c))
 # and LIBS to the 'make' command line for your platform.
 #
 # The following works for OSX with macports or homebrew (10.6/10.7),
-# FreeBSD 8.x and 9.x, and Ubuntu 11.10 and 12.04.
+# FreeBSD 8.x through 10.x, and Ubuntu 11.10 through 14.04.
 
 # Ubuntu
 #  - perftools doesn't currently register a .pc file at all
-#  - lua is called 'lua5.1'
+#  - lua is called 'lua5.2'
 ifeq ($(UNAME), Linux)
 volta: CFLAGS += -L/usr/lib -I/usr/include
-volta: CFLAGS += $(shell pkg-config --cflags-only-I --libs-only-L lua5.1)
-volta: LIBS   += $(shell pkg-config --libs-only-l lua5.1)
+volta: CFLAGS += $(shell pkg-config --cflags-only-I --libs-only-L lua5.2)
+volta: LIBS   += $(shell pkg-config --libs-only-l lua5.2)
 debug: CFLAGS += $(CFLAGS_DEBUG)\
-	$(shell pkg-config --cflags-only-I --libs-only-L lua5.1)
-debug: LIBS   += $(shell pkg-config --libs-only-l lua5.1) -lprofiler
+	$(shell pkg-config --cflags-only-I --libs-only-L lua5.2)
+debug: LIBS   += $(shell pkg-config --libs-only-l lua5.2) -lprofiler
 
 # FreeBSD
-# - lua is called 'lua-5.1'
+# - lua is called 'lua-5.2'
 else ifeq ($(UNAME), FreeBSD)
 volta: CFLAGS += -L/usr/local/lib -I/usr/local/include
-volta: CFLAGS += $(shell pkg-config --cflags-only-I --libs-only-L lua-5.1)
-volta: LIBS   += $(shell pkg-config --libs-only-l lua-5.1)
+volta: CFLAGS += $(shell pkg-config --cflags-only-I --libs-only-L lua-5.2)
+volta: LIBS   += $(shell pkg-config --libs-only-l lua-5.2)
 debug: CFLAGS += $(CFLAGS_DEBUG)\
-    $(shell pkg-config --cflags-only-I --libs-only-L lua-5.1 $(DEPS_DEBUG))
-debug: LIBS += $(shell pkg-config --libs-only-l lua-5.1 $(DEPS_DEBUG))
+    $(shell pkg-config --cflags-only-I --libs-only-L lua-5.2 $(DEPS_DEBUG))
+debug: LIBS += $(shell pkg-config --libs-only-l lua-5.2 $(DEPS_DEBUG))
 
 # Darwin, everyone else (best guess?)
 # - lua is called 'lua', hopefully!
