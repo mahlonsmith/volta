@@ -132,8 +132,8 @@ pass( parsed *request, parsed *rule )
 		return;
 	}
 
-	if ( request && request->chid ) printf( "%s", request->chid );
-	printf( "\n" );
+	if ( request && request->chid ) printf( "%s ", request->chid );
+	printf( "ERR\n" );
 	fflush( stdout );
 
 	finish_parsed( rule );
@@ -152,7 +152,18 @@ rewrite( parsed *request, parsed *rule )
 	if ( rule == NULL || v.debugmode >= 5 ) return;
 
 	if ( request->chid ) printf( "%s", request->chid );
-	if ( rule->redir ) printf( "%s:", rule->redir );
+	printf( "OK " );
+
+	/* Redirect */
+	if ( rule->redir ) {
+		printf( "status=%s url=", rule->redir );
+	}
+
+	/* Rewrite */
+	else {
+		printf( "rewrite-url=" );
+	}
+
 	printf( "%s%s", (rule->scheme ? rule->scheme : request->scheme), rule->host );
 	if ( rule->port ) printf( ":%s", rule->port );
 	printf( "%s", rule->path ? rule->path : request->path );

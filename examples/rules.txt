@@ -10,7 +10,7 @@
 google.com * 302:https://www.google.com
 
 # Transparently alter all uploaded images on imgur to be my face:  :)
-i.imgur.com \.(gif|png|jpg)$ http://www.martini.nu/images/mahlon.jpg
+i.imgur.com \.(gif|png|jpg)$ http://www.martini.nu/img/mahlon.jpg
 
 # Expand a local, non qualified hostname to a FQDN (useful alongside the
 # 'dns_defnames' squid setting to enforce browser proxy behaviors):

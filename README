@@ -51,8 +51,7 @@ rewriter children, it also supports Squid's rewrite_concurrency format
 if you find that to be more efficient for your environment.  Adjust to
 taste.
 
-	url_rewrite_concurrency 60
-	url_rewrite_children 5
+	url_rewrite_children 5 startup=1 idle=2 concurrency=50
 
 
 Using volta

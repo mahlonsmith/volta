@@ -58,7 +58,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #ifdef DEBUG
-#include <google/profiler.h>
+#include <gperftools/profiler.h>
 #endif
 
 /* Default line size we accept from squid, longer lines (huge URLs?) malloc. */

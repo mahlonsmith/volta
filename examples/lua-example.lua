@@ -13,6 +13,6 @@ local redir = 302
 -- how easy it is to do custom stuff.
 --
 if os.time() % 2 == 0 then
-	return string.format( "%d:http://example.com%s", redir, request.path )
+	return string.format( "OK status=%d url=http://example.com%s", redir, request.path )
 end
 
