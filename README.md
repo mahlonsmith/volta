@@ -92,55 +92,53 @@ tabs.)
 
 ### Positive matches:
 
-    First field: the hostname to match.
+**First field**: *the hostname to match*
 
-      You can use an exact hostname (www.example.com), or the top level
-      domain (tld) if you want to match everything under a specific host
-      (example.com.)  You can also use a single '*' to match every request,
-      though this essentially bypasses a lot of what makes volta quick, it
-      is included for completeness.  You may have an unlimited amount of
-      rules per hostname.  Hostnames are compared without case sensitivity.
+	You can use an exact hostname (www.example.com), or the top level
+	domain (tld) if you want to match everything under a specific host
+	(example.com.)  You can also use a single '*' to match every request,
+	though this essentially bypasses a lot of what makes volta quick, it
+	is included for completeness.  You may have an unlimited amount of
+	rules per hostname.  Hostnames are compared without case sensitivity.
 
+**Second field**: *the path to match*
 
-    Second field: the path to match.
+	This can be an exact match ('/path/to/something.html'), a regular
+	expression ('\.(jpg|gif|png)$'), or a single '*' to match for any
+	path. Regular expressions are matched without case sensitivity.  There
+	is currently no internal support for captures, though you can use
+	a Lua rule (see below) for more complex processing.
 
-	  This can be an exact match ('/path/to/something.html'), a regular
-	  expression ('\.(jpg|gif|png)$'), or a single '*' to match for any
-	  path. Regular expressions are matched without case sensitivity.  There
-	  is currently no internal support for captures, though you can use
-	  a Lua rule (see below) for more complex processing.
+**Third field**: *the redirect code and url to rewrite to*
 
+	Any pieces of a url that are omitted are automatically replaced
+	with the original request's element -- the exception is a hostname,
+	which is required.  If you omit a redirect code, the URL rewrite is
+	transparent to the client.  You can attach a 301: or 302: prefix to
+	cause a permanent or temporary code to be respectively sent, instead.
 
-    Third field: The redirect code and url to rewrite to.
-
-      Any pieces of a url that are omitted are automatically replaced
-      with the original request's element -- the exception is a hostname,
-      which is required.  If you omit a redirect code, the URL rewrite is
-      transparent to the client.  You can attach a 301: or 302: prefix to
-      cause a permanent or temporary code to be respectively sent, instead.
-
-      If you require more complex processing than what volta provides
-      internally, you can also specify a path to a Lua script (prefixed
-      with 'lua:'.)  See the 'Lua rules' section of this README for more
-	  information.
+	If you require more complex processing than what volta provides
+	internally, you can also specify a path to a Lua script (prefixed
+	with 'lua:'.)  See the 'Lua rules' section of this README for more
+	information.
 
 
 ### Negative matches:
 
-    First field: the hostname to match.
+**First field**: *the hostname to match*
 
-	  See above -- all the same rules apply.
-
-
-    Second field: the path to match.
-
-	  See above -- all the same rules apply.
+See above -- all the same rules apply.
 
 
-	Third field: the 'negative' marker.
+**Second field**: *the path to match*
 
-	  This is simply the '-' character, that signals to volta that this is
-	  a negative matching rule.
+See above -- all the same rules apply.
+
+
+**Third field**: *the 'negative' marker*
+
+This is simply the '-' character, that signals to volta that this is
+a negative matching rule.
 
 
 You can easily test your rules by running volta on the command line, and
@@ -152,7 +150,7 @@ Examples
 
 Rewrite all requests to Google to the SSL version:
 
-    google.com * 302:https://www.google.com
+	google.com * 302:https://www.google.com
 
 	This will redirect the request "http://www.google.com/search?q=test" to
 	"https://www.google.com/search?q=test".
@@ -232,5 +230,4 @@ rule match -- the original request is allowed through without any rewrite.
 
 An extremely simple Lua rule script can be found in the 'examples'
 directory, distributed with volta.
-
 

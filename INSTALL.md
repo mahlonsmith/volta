@@ -48,9 +48,10 @@ For usage information, see the README.
 Development
 -----------
 
-Volta source can be cloned via Mercurial.  The repo is found at:
+Volta source can be cloned via Mercurial.  The repo can be found at:
 
-	http://code.martini.nu/volta
+	http://code.martini.nu/volta       (primary)
+	https://bitbucket.org/mahlon/volta (secondary)
 
 You can use the 'debug' make target to compile a (very noisy) binary
 that contains gdb symbols and perftool hooks.  Set the CPUPROFILE
