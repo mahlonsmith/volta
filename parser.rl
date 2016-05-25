@@ -133,7 +133,8 @@ parse_request( char *line )
 	#   so no need to check for that.
 	#
 
-	host_component = alnum | ( alnum [a-zA-Z0-9\-_]* alnum );
+	urichar        = ( '%' alnum{2} | alnum );
+	host_component = urichar | ( urichar [%a-zA-Z0-9\-_]* urichar );
 	pchar          = ( alnum | [\-._~!$%&'()*+,;=] );
 	path_segment   = '/' ( any - space )*;
 
@@ -228,8 +229,9 @@ parse_rule( char *rewrite )
 	action host_error    { debug( 3, LOC, "Unable to parse the rule hostname.\n" ); }
 	action luapath_error { debug( 3, LOC, "Unable to parse the lua path.\n" ); }
 
-	host_component  = alnum | ( alnum [a-zA-Z0-9\-_]* alnum );
-	path_segment    = '/' ( any - space )*;
+	urichar        = ( '%' alnum{2} | alnum );
+	host_component = urichar | ( urichar [%a-zA-Z0-9\-_]* urichar );
+	path_segment   = '/' ( any - space )*;
 
 	sep       = space+;
 	hostname  = host_component ( '.' host_component )* '.'?;
@@ -307,7 +309,8 @@ parse_dbinput( char *line )
 	action val_error  { debug( 0, LOC, "Invalid rewrite value\n" ); }
 
 	sep            = space+;
-	host_component = alnum | ( alnum [a-zA-Z0-9\-_]* alnum );
+	urichar        = ( '%' alnum{2} | alnum );
+	host_component = urichar | ( urichar [%a-zA-Z0-9\-_]* urichar );
 	hostname       = host_component ( '.' host_component )* '.'?;
 	ipv4           = digit{1,3} '.' digit{1,3} '.' digit{1,3} '.' digit{1,3};
 	token          = ( any - space )+;
